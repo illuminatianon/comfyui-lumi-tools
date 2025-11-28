@@ -156,8 +156,17 @@ class LumiWildcardProcessor:
             context.rand.seed(seed)
 
         prompts = list(context.sample_prompts(text, 1))
-        return prompts[0] if prompts else text
+        return str(prompts[0]) if prompts else text
 
     def doit(self, *args, **kwargs):
-        populated_text = self.process(text=kwargs['populated_text'], seed=kwargs['seed'])
-        return (populated_text, )
+        mode = kwargs.get('mode', 'populate')
+        seed = kwargs['seed']
+
+        if mode == 'populate':
+            # Process wildcard_text and return result
+            result = self.process(text=kwargs['wildcard_text'], seed=seed)
+        else:
+            # fixed/reproduce: use populated_text as-is (but still process any wildcards in it)
+            result = self.process(text=kwargs['populated_text'], seed=seed)
+
+        return (result, )
