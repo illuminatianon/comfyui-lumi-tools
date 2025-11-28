@@ -1,7 +1,119 @@
-from dynamicprompts.generators import RandomPromptGenerator
+from __future__ import annotations
+
+import os
+from functools import lru_cache
+from pathlib import Path
+
+from dynamicprompts.enums import SamplingMethod
+from dynamicprompts.sampling_context import SamplingContext
+from dynamicprompts.wildcards import WildcardManager
+
+
+def _init_wildcard_folder_paths() -> None:
+    """
+    Register 'wildcards' as a folder type in ComfyUI's folder_paths.
+    This allows users to add custom wildcard paths via extra_model_paths.yaml
+    """
+    try:
+        import folder_paths
+
+        # Register default wildcards path if not already registered
+        if "wildcards" not in folder_paths.folder_names_and_paths:
+            default_path = os.path.join(folder_paths.base_path, "wildcards")
+            folder_paths.folder_names_and_paths["wildcards"] = ([default_path], {".txt", ".yaml", ".json"})
+
+            # Create the default folder if it doesn't exist
+            os.makedirs(default_path, exist_ok=True)
+    except ImportError:
+        pass
+
+
+def get_wildcard_paths() -> list[Path]:
+    """
+    Get all configured wildcard paths.
+
+    Priority:
+    1. LUMI_WILDCARDS_PATH environment variable (if set, adds to the list)
+    2. All paths from folder_paths "wildcards" (configurable via extra_model_paths.yaml)
+    3. ./wildcards (fallback if nothing else works)
+
+    To add custom paths, edit ComfyUI/extra_model_paths.yaml:
+
+        my_wildcards:
+            wildcards: D:/dev/wildcards
+
+    Or on Linux:
+
+        my_wildcards:
+            wildcards: /home/user/my/wildcards/folder
+    """
+    paths: list[Path] = []
+
+    # Check environment variable
+    env_path = os.environ.get("LUMI_WILDCARDS_PATH")
+    if env_path:
+        path = Path(env_path)
+        path.mkdir(parents=True, exist_ok=True)
+        paths.append(path)
+
+    # Try to use ComfyUI's folder_paths
+    try:
+        import folder_paths
+        for p in folder_paths.get_folder_paths("wildcards"):
+            path = Path(p)
+            if path.exists() or path == Path(folder_paths.base_path) / "wildcards":
+                path.mkdir(parents=True, exist_ok=True)
+                if path not in paths:
+                    paths.append(path)
+    except (ImportError, KeyError):
+        pass
+
+    # Fallback if no paths found
+    if not paths:
+        fallback = Path("./wildcards")
+        fallback.mkdir(parents=True, exist_ok=True)
+        paths.append(fallback)
+
+    return paths
+
+
+# Initialize folder paths on module load
+_init_wildcard_folder_paths()
+
+
+@lru_cache(maxsize=1)
+def get_wildcard_manager() -> WildcardManager:
+    """
+    Get a cached WildcardManager instance.
+
+    Supports multiple wildcard directories via ComfyUI's folder_paths system.
+    """
+    paths = get_wildcard_paths()
+
+    if len(paths) == 1:
+        return WildcardManager(path=paths[0])
+
+    # Multiple paths: use root_map to combine them
+    # All paths are mapped to the root "" prefix so wildcards are accessible without prefix
+    root_map = {"": paths}
+    return WildcardManager(root_map=root_map)
+
+
+def get_wildcard_list() -> list[str]:
+    """Get a sorted list of available wildcards formatted for the dropdown."""
+    try:
+        wm = get_wildcard_manager()
+        names = sorted(wm.get_collection_names())
+        # Format as __wildcard__ for easy copy-paste
+        return ["Select the Wildcard to add to the text"] + [f"__{name}__" for name in names]
+    except Exception:
+        return ["Select the Wildcard to add to the text"]
 
 
 class LumiWildcardProcessor:
+    def __init__(self):
+        self._wildcard_manager = get_wildcard_manager()
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
@@ -13,9 +125,14 @@ class LumiWildcardProcessor:
                             "reproduce: Operates as 'fixed' mode once for reproduction, then switches to 'populate' mode."
                             }),
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Random seed for wildcard processing."}),
-                        "Select to add Wildcard": (["Select the Wildcard to add to the text"],),
+                        "Select to add Wildcard": (get_wildcard_list(),),
                     },
                 }
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # Force re-evaluation to refresh wildcard list
+        return float("NaN")
 
     CATEGORY = "Lumi/Prompt"
 
@@ -25,12 +142,17 @@ class LumiWildcardProcessor:
     RETURN_NAMES = ("processed text",)
     FUNCTION = "doit"
 
-    @staticmethod
-    def process(text: str, seed: int) -> str:
-        generator = RandomPromptGenerator(seed=seed)
-        results = generator.generate(text, num_images=1)
-        return results[0] if results else text
+    def process(self, text: str, seed: int) -> str:
+        context = SamplingContext(
+            wildcard_manager=self._wildcard_manager,
+            default_sampling_method=SamplingMethod.RANDOM,
+        )
+        if seed > 0:
+            context.rand.seed(seed)
+
+        prompts = list(context.sample_prompts(text, 1))
+        return prompts[0] if prompts else text
 
     def doit(self, *args, **kwargs):
-        populated_text = LumiWildcardProcessor.process(text=kwargs['populated_text'], seed=kwargs['seed'])
+        populated_text = self.process(text=kwargs['populated_text'], seed=kwargs['seed'])
         return (populated_text, )
