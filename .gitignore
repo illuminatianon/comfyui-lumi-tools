@@ -5,7 +5,10 @@ build/
 dist/
 wheels/
 *.egg-info
-wildcards/**
 
 # Virtual environments
 .venv
+
+# Project files
+wildcards/**
+tmp/**
