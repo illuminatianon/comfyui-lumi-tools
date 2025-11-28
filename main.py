@@ -68,6 +68,11 @@ def get_wildcard_paths() -> list[Path]:
     except (ImportError, KeyError):
         pass
 
+    # Also check ./wildcards relative to this node (not recommended, but supported)
+    local_path = Path(__file__).parent / "wildcards"
+    if local_path.exists() and local_path not in paths:
+        paths.append(local_path)
+
     # Fallback if no paths found
     if not paths:
         fallback = Path("./wildcards")
