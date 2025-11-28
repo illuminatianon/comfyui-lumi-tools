@@ -8,6 +8,12 @@ from dynamicprompts.enums import SamplingMethod
 from dynamicprompts.sampling_context import SamplingContext
 from dynamicprompts.wildcards import WildcardManager
 
+try:
+    from server import PromptServer
+    HAS_SERVER = True
+except ImportError:
+    HAS_SERVER = False
+
 
 def _init_wildcard_folder_paths() -> None:
     """
@@ -132,6 +138,7 @@ class LumiWildcardProcessor:
                         "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Random seed for wildcard processing."}),
                         "Select to add Wildcard": (get_wildcard_list(),),
                     },
+                "hidden": {"unique_id": "UNIQUE_ID"},
                 }
 
     @classmethod
@@ -158,9 +165,10 @@ class LumiWildcardProcessor:
         prompts = list(context.sample_prompts(text, 1))
         return str(prompts[0]) if prompts else text
 
-    def doit(self, *args, **kwargs):
+    def doit(self, **kwargs):
         mode = kwargs.get('mode', 'populate')
         seed = kwargs['seed']
+        unique_id = kwargs.get('unique_id')
 
         if mode == 'populate':
             # Process wildcard_text and return result
@@ -168,5 +176,12 @@ class LumiWildcardProcessor:
         else:
             # fixed/reproduce: use populated_text as-is (but still process any wildcards in it)
             result = self.process(text=kwargs['populated_text'], seed=seed)
+
+        # Send feedback to update the populated_text widget in the UI
+        if HAS_SERVER and unique_id is not None:
+            PromptServer.instance.send_sync(
+                "lumi-node-feedback",
+                {"node_id": unique_id, "widget_name": "populated_text", "value": result}
+            )
 
         return (result, )
