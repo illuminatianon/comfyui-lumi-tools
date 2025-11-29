@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from pathlib import Path
 
 from dynamicprompts.enums import SamplingMethod
@@ -13,6 +12,10 @@ try:
     HAS_SERVER = True
 except ImportError:
     HAS_SERVER = False
+
+
+# Cache for WildcardManager with mtime-based invalidation
+_wildcard_cache: dict = {"manager": None, "mtimes": {}}
 
 
 def _init_wildcard_folder_paths() -> None:
@@ -92,22 +95,52 @@ def get_wildcard_paths() -> list[Path]:
 _init_wildcard_folder_paths()
 
 
-@lru_cache(maxsize=1)
+def _get_folder_mtimes(paths: list[Path]) -> dict[Path, float]:
+    """
+    Get modification times for wildcard folders and their contents.
+    Used to detect when wildcards have changed.
+    """
+    mtimes: dict[Path, float] = {}
+    for path in paths:
+        if path.exists():
+            # Track folder mtime
+            mtimes[path] = path.stat().st_mtime
+            # Also track individual wildcard files
+            for ext in (".txt", ".yaml", ".json"):
+                for file in path.rglob(f"*{ext}"):
+                    mtimes[file] = file.stat().st_mtime
+    return mtimes
+
+
 def get_wildcard_manager() -> WildcardManager:
     """
-    Get a cached WildcardManager instance.
+    Get a WildcardManager instance with automatic cache invalidation.
+
+    The manager is cached but automatically refreshes when:
+    - Wildcard folders are added/removed
+    - Wildcard files are added/removed/modified
 
     Supports multiple wildcard directories via ComfyUI's folder_paths system.
     """
     paths = get_wildcard_paths()
+    current_mtimes = _get_folder_mtimes(paths)
 
+    # Check if cache is valid
+    if _wildcard_cache["manager"] is not None and _wildcard_cache["mtimes"] == current_mtimes:
+        return _wildcard_cache["manager"]
+
+    # Cache miss or invalidated - create new manager
     if len(paths) == 1:
-        return WildcardManager(path=paths[0])
+        manager = WildcardManager(path=paths[0])
+    else:
+        # Multiple paths: use root_map to combine them
+        # All paths are mapped to the root "" prefix so wildcards are accessible without prefix
+        root_map = {"": paths}
+        manager = WildcardManager(root_map=root_map)
 
-    # Multiple paths: use root_map to combine them
-    # All paths are mapped to the root "" prefix so wildcards are accessible without prefix
-    root_map = {"": paths}
-    return WildcardManager(root_map=root_map)
+    _wildcard_cache["manager"] = manager
+    _wildcard_cache["mtimes"] = current_mtimes
+    return manager
 
 
 def get_wildcard_list() -> list[str]:
@@ -122,8 +155,6 @@ def get_wildcard_list() -> list[str]:
 
 
 class LumiWildcardProcessor:
-    def __init__(self):
-        self._wildcard_manager = get_wildcard_manager()
 
     @classmethod
     def INPUT_TYPES(s):
@@ -156,7 +187,7 @@ class LumiWildcardProcessor:
 
     def process(self, text: str, seed: int) -> str:
         context = SamplingContext(
-            wildcard_manager=self._wildcard_manager,
+            wildcard_manager=get_wildcard_manager(),
             default_sampling_method=SamplingMethod.RANDOM,
         )
         if seed > 0:
