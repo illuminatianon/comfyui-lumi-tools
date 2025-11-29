@@ -1,3 +1,6 @@
+"""
+Shared wildcard utilities for Lumi Pack nodes.
+"""
 from __future__ import annotations
 
 import os
@@ -6,12 +9,6 @@ from pathlib import Path
 from dynamicprompts.enums import SamplingMethod
 from dynamicprompts.sampling_context import SamplingContext
 from dynamicprompts.wildcards import WildcardManager
-
-try:
-    from server import PromptServer
-    HAS_SERVER = True
-except ImportError:
-    HAS_SERVER = False
 
 
 # Cache for WildcardManager with mtime-based invalidation
@@ -77,8 +74,8 @@ def get_wildcard_paths() -> list[Path]:
     except (ImportError, KeyError):
         pass
 
-    # Also check ./wildcards relative to this node (not recommended, but supported)
-    local_path = Path(__file__).parent / "wildcards"
+    # Also check ./wildcards relative to this node pack (not recommended, but supported)
+    local_path = Path(__file__).parent.parent / "wildcards"
     if local_path.exists() and local_path not in paths:
         paths.append(local_path)
 
@@ -154,65 +151,24 @@ def get_wildcard_list() -> list[str]:
         return ["Select the Wildcard to add to the text"]
 
 
-class LumiWildcardProcessor:
+def process_wildcards(text: str, seed: int) -> str:
+    """
+    Process a text string containing wildcard syntax and return the resolved text.
+    
+    Args:
+        text: The text containing wildcard syntax (e.g., "__colors__ cat")
+        seed: Random seed for reproducible wildcard resolution
+        
+    Returns:
+        The processed text with wildcards resolved
+    """
+    context = SamplingContext(
+        wildcard_manager=get_wildcard_manager(),
+        default_sampling_method=SamplingMethod.RANDOM,
+    )
+    if seed > 0:
+        context.rand.seed(seed)
 
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-                        "wildcard_text": ("STRING", {"multiline": True, "dynamicPrompts": False, "tooltip": "Enter a prompt using wildcard syntax."}),
-                        "populated_text": ("STRING", {"multiline": True, "dynamicPrompts": False, "tooltip": "The actual value passed during execution. Wildcard syntax can also be used here."}),
-                        "mode": (["populate", "fixed", "reproduce"], {"default": "populate", "tooltip":
-                            "populate: Overwrites 'populated_text' with the processed prompt from 'wildcard_text'. Cannot edit 'populated_text' in this mode.\n"
-                            "fixed: Ignores wildcard_text and keeps 'populated_text' as is. You can edit 'populated_text' in this mode.\n"
-                            "reproduce: Operates as 'fixed' mode once for reproduction, then switches to 'populate' mode."
-                            }),
-                        "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Random seed for wildcard processing."}),
-                        "Select to add Wildcard": (get_wildcard_list(),),
-                    },
-                "hidden": {"unique_id": "UNIQUE_ID"},
-                }
+    prompts = list(context.sample_prompts(text, 1))
+    return str(prompts[0]) if prompts else text
 
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        # Force re-evaluation to refresh wildcard list
-        return float("NaN")
-
-    CATEGORY = "Lumi/Prompt"
-
-    DESCRIPTION = "Processes text prompts written in wildcard syntax and outputs the processed text prompt."
-
-    RETURN_TYPES = ("STRING", )
-    RETURN_NAMES = ("processed text",)
-    FUNCTION = "doit"
-
-    def process(self, text: str, seed: int) -> str:
-        context = SamplingContext(
-            wildcard_manager=get_wildcard_manager(),
-            default_sampling_method=SamplingMethod.RANDOM,
-        )
-        if seed > 0:
-            context.rand.seed(seed)
-
-        prompts = list(context.sample_prompts(text, 1))
-        return str(prompts[0]) if prompts else text
-
-    def doit(self, **kwargs):
-        mode = kwargs.get('mode', 'populate')
-        seed = kwargs['seed']
-        unique_id = kwargs.get('unique_id')
-
-        if mode == 'populate':
-            # Process wildcard_text and return result
-            result = self.process(text=kwargs['wildcard_text'], seed=seed)
-        else:
-            # fixed/reproduce: use populated_text as-is (but still process any wildcards in it)
-            result = self.process(text=kwargs['populated_text'], seed=seed)
-
-        # Send feedback to update the populated_text widget in the UI
-        if HAS_SERVER and unique_id is not None:
-            PromptServer.instance.send_sync(
-                "lumi-node-feedback",
-                {"node_id": unique_id, "widget_name": "populated_text", "value": result}
-            )
-
-        return (result, )
