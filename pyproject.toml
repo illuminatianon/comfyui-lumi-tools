@@ -1,5 +1,5 @@
 [project]
-name = "comfyui-lumi-pack"
+name = "comfyui-lumi-tools"
 version = "0.1.0"
 description = "A ComfyUI custom node pack by Lumi."
 license = { text = "GPL-3.0" }
@@ -8,9 +8,9 @@ requires-python = ">=3.10"
 dependencies = ["dynamicprompts"]
 
 [project.urls]
-Repository = "https://github.com/illuminatianon/comfyui-lumi-pack"
+Repository = "https://github.com/illuminatianon/comfyui-lumi-tools
 
 [tool.comfy]
 PublisherId = "illuminatianon"
-DisplayName = "Lumi Pack"
+DisplayName = "Lumi Tools"
 Icon = ""
