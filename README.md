@@ -1,6 +1,6 @@
-# Lumi Wildcard Processor
+# Lumi Tools
 
-A ComfyUI custom node for processing wildcard prompts using the [dynamicprompts](https://github.com/adieyal/dynamicprompts) library.
+A collection of utility nodes for ComfyUI.
 
 ## Installation
 
@@ -11,63 +11,30 @@ A ComfyUI custom node for processing wildcard prompts using the [dynamicprompts]
    ```
 3. Restart ComfyUI
 
-## Usage
+## Nodes
 
-The node appears under **Lumi/Prompt** as "Lumi Wildcard Processor".
+All nodes appear under **Lumi/** in the node menu.
 
-For wildcard syntax documentation, see the [dynamicprompts documentation](https://github.com/adieyal/dynamicprompts#syntax).
+### Lumi Shuffle Prompt
 
-### Modes
+Shuffles tokens in a prompt string. Useful for randomizing tag order.
 
-- **populate**: Processes `wildcard_text` and writes the result to `populated_text`
-- **fixed**: Ignores `wildcard_text`, uses `populated_text` as-is (allows manual editing)
-- **reproduce**: Runs as `fixed` once for reproduction, then switches to `populate`
+- Strips newlines and commas
+- Splits by spaces, shuffles, and rejoins
+- Seeded for reproducibility
 
-## Configuring Wildcard Paths
+### Lumi Wildcard Processor
 
-Wildcards are loaded from `.txt`, `.yaml`, or `.json` files. The node searches for wildcards in the following locations (in order):
+Processes wildcard prompts using [dynamicprompts](https://github.com/adieyal/dynamicprompts).
 
-### 1. Environment Variable
+### Lumi Wildcard Encode
 
-Set `LUMI_WILDCARDS_PATH` to point to your wildcards folder:
+Processes wildcards with inline LoRA support and encodes to conditioning.
 
-```bash
-# Windows
-set LUMI_WILDCARDS_PATH=D:\my\wildcards
+### Lumi Show Text
 
-# Linux/Mac
-export LUMI_WILDCARDS_PATH=/home/user/my/wildcards
-```
-
-### 2. ComfyUI extra_model_paths.yaml (Recommended)
-
-Add a `wildcards` entry to your `ComfyUI/extra_model_paths.yaml`:
-
-```yaml
-my_config:
-  wildcards: D:/dev/wildcards
-```
-
-You can specify multiple sources:
-
-```yaml
-personal_wildcards:
-  wildcards: D:/my/personal/wildcards
-
-shared_wildcards:
-  wildcards: //server/shared/wildcards
-```
-
-All paths are merged, so wildcards from all locations are available.
-
-### 3. Default Location
-
-If no custom paths are configured, wildcards are loaded from `{ComfyUI}/wildcards`.
-
-### 4. Local ./wildcards Folder
-
-You can also place wildcards in the `wildcards` folder inside this node's directory. This is checked last and not recommended for general use (keep your data separate from your code), but it works if you really want it.
+Displays text output for debugging.
 
 ## License
 
-GPL-3.0 (derived from [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack))
+GPL-3.0

@@ -1,5 +1,7 @@
 """
 Lumi Wildcard Processor node.
+
+Based on ComfyUI-Impact-Pack's Wildcard Processor node.
 """
 from __future__ import annotations
 

@@ -1,5 +1,7 @@
 """
 Lumi Wildcard Encode node - processes wildcards, loads LoRAs, and encodes to conditioning.
+
+Based on ComfyUI-Impact-Pack's Wildcard Encode node.
 """
 from __future__ import annotations
 
