@@ -7,7 +7,7 @@ A collection of utility nodes for ComfyUI.
 1. Clone or symlink this repository into your ComfyUI `custom_nodes` folder
 2. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   pip install .
    ```
 3. Restart ComfyUI
 
@@ -34,6 +34,20 @@ Processes wildcards with inline LoRA support and encodes to conditioning.
 ### Lumi Show Text
 
 Displays text output for debugging.
+
+## Configuring Wildcard Paths
+
+Configure wildcard paths in `ComfyUI/extra_model_paths.yaml`:
+
+```yaml
+my_wildcards:
+  wildcards: D:/dev/wildcards
+```
+
+Alternatively:
+
+- Set the `LUMI_WILDCARDS_PATH` environment variable
+- Place wildcards in `{ComfyUI}/wildcards`
 
 ## License
 
