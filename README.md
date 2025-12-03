@@ -1,4 +1,4 @@
-# Lumi Tools
+# Lumi Tools v0.1.0
 
 A collection of utility nodes for ComfyUI.
 
