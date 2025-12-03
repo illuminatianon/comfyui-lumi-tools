@@ -1,0 +1,20 @@
+You could put wildcards in this directory, sure.
+
+But I can tell you're a refined individual and would never do anything so crass as put user data in a potentially volatile plugin directory! Haha, who would do that?
+
+Instead, you can configure wildcard paths in `ComfyUI/extra_model_paths.yaml`:
+
+```yaml
+my_wildcards:
+  wildcards: D:/dev/wildcards
+
+# Or multiple sources:
+another_set:
+  wildcards: /home/user/shared/wildcards
+```
+
+Or just symlink your wildcards directory to `./wildcards` if you're lazy.
+
+OR you can set the `LUMI_WILDCARDS_PATH` environment variable to point to your wildcards directory.
+
+~~Lumi

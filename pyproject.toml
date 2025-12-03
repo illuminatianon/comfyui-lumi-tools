@@ -1,7 +1,19 @@
 [project]
-name = "lumi-wildcard-processor"
+name = "comfyui-lumi-tools"
 version = "0.1.0"
-description = "Add your description here"
+description = "A ComfyUI custom node pack by Lumi."
+license = "GPL-3.0"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = ["dynamicprompts"]
+
+[project.urls]
+Repository = "https://github.com/anthropics/comfyui-lumi-tools"
+
+[tool.setuptools]
+packages = []
+
+[tool.comfy]
+PublisherId = "illuminatianon-333"
+DisplayName = "Lumi Tools"
+Icon = ""
