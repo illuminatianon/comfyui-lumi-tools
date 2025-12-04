@@ -7,9 +7,15 @@ A collection of utility nodes for ComfyUI.
 1. Clone or symlink this repository into your ComfyUI `custom_nodes` folder
 2. Install dependencies:
    ```bash
-   pip install .
+   pip install -r requirements.txt
    ```
 3. Restart ComfyUI
+
+### Development Setup
+
+```bash
+pip install -r requirements-dev.txt
+```
 
 ## Nodes
 

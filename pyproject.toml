@@ -8,12 +8,53 @@ requires-python = ">=3.10"
 dependencies = ["dynamicprompts"]
 
 [project.urls]
-Repository = "https://github.com/anthropics/comfyui-lumi-tools"
+Repository = "https://github.com/illuminatianon/comfyui-lumi-tools"
 
 [tool.setuptools]
 packages = []
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E501"]
+exclude = [ "tmp" ]
 
 [tool.comfy]
 PublisherId = "illuminatianon-333"
 DisplayName = "Lumi Tools"
 Icon = ""
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "master"
+commit_message = "chore(release): {version} [skip ci]"
+build_command = ""
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = [
+    "^chore\\(release\\):",
+    "^Merge",
+    "^chore",                # repo housekeeping
+    "^docs",                 # documentation tweaks
+    "^style",                # formatting
+    "^refactor",             # internal changes
+    "^test",                 # tests
+    "^ci",                   # CI / actions tweaks
+    "^build",                # build pipeline / packaging
+]
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true

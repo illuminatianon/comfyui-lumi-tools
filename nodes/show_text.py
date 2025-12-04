@@ -1,10 +1,12 @@
 """
 Lumi Show Text node - displays text output in the node.
 """
+
 from __future__ import annotations
 
 try:
     from server import PromptServer
+
     HAS_SERVER = True
 except ImportError:
     HAS_SERVER = False
@@ -44,8 +46,11 @@ class LumiShowText:
         if HAS_SERVER and unique_id is not None:
             PromptServer.instance.send_sync(
                 "lumi-node-feedback",
-                {"node_id": unique_id, "widget_name": "displayed_text", "value": display_text}
+                {
+                    "node_id": unique_id,
+                    "widget_name": "displayed_text",
+                    "value": display_text,
+                },
             )
 
         return (text,)
-
