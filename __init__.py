@@ -1,7 +1,7 @@
 from .nodes import (
-    LumiWildcardProcessor,
     LumiShowText,
     LumiShufflePrompt,
+    LumiWildcardProcessor,
 )
 
 NODE_CLASS_MAPPINGS = {

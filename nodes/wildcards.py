@@ -11,7 +11,6 @@ from dynamicprompts.enums import SamplingMethod
 from dynamicprompts.sampling_context import SamplingContext
 from dynamicprompts.wildcards import WildcardManager
 
-
 # Cache for WildcardManager with mtime-based invalidation
 _wildcard_cache: dict = {"manager": None, "mtimes": {}}
 
