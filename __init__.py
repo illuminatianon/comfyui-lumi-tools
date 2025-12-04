@@ -1,4 +1,8 @@
-from .nodes import LumiWildcardProcessor, LumiShowText, LumiShufflePrompt
+from .nodes import (
+    LumiWildcardProcessor,
+    LumiShowText,
+    LumiShufflePrompt,
+)
 
 NODE_CLASS_MAPPINGS = {
     "LumiWildcardProcessor": LumiWildcardProcessor,

@@ -1,6 +1,7 @@
 """
 Shared wildcard utilities for Lumi Pack nodes.
 """
+
 from __future__ import annotations
 
 import os
@@ -26,7 +27,10 @@ def _init_wildcard_folder_paths() -> None:
         # Register default wildcards path if not already registered
         if "wildcards" not in folder_paths.folder_names_and_paths:
             default_path = os.path.join(folder_paths.base_path, "wildcards")
-            folder_paths.folder_names_and_paths["wildcards"] = ([default_path], {".txt", ".yaml", ".json"})
+            folder_paths.folder_names_and_paths["wildcards"] = (
+                [default_path],
+                {".txt", ".yaml", ".json"},
+            )
 
             # Create the default folder if it doesn't exist
             os.makedirs(default_path, exist_ok=True)
@@ -65,6 +69,7 @@ def get_wildcard_paths() -> list[Path]:
     # Try to use ComfyUI's folder_paths
     try:
         import folder_paths
+
         for p in folder_paths.get_folder_paths("wildcards"):
             path = Path(p)
             if path.exists() or path == Path(folder_paths.base_path) / "wildcards":
@@ -154,11 +159,11 @@ def get_wildcard_list() -> list[str]:
 def process_wildcards(text: str, seed: int) -> str:
     """
     Process a text string containing wildcard syntax and return the resolved text.
-    
+
     Args:
         text: The text containing wildcard syntax (e.g., "__colors__ cat")
         seed: Random seed for reproducible wildcard resolution
-        
+
     Returns:
         The processed text with wildcards resolved
     """
@@ -171,4 +176,3 @@ def process_wildcards(text: str, seed: int) -> str:
 
     prompts = list(context.sample_prompts(text, 1))
     return str(prompts[0]) if prompts else text
-

@@ -1,6 +1,7 @@
 """
 Lumi Shuffle Prompt node - shuffles tokens in a prompt.
 """
+
 from __future__ import annotations
 
 import random
@@ -9,7 +10,7 @@ import random
 class LumiShufflePrompt:
     """
     Shuffles tokens in a prompt string.
-    
+
     Strips newlines and commas, splits by spaces, shuffles, and rejoins.
     """
 
@@ -17,8 +18,19 @@ class LumiShufflePrompt:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "text": ("STRING", {"multiline": True, "tooltip": "The prompt text to shuffle."}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Random seed for shuffling."}),
+                "text": (
+                    "STRING",
+                    {"multiline": True, "tooltip": "The prompt text to shuffle."},
+                ),
+                "seed": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "tooltip": "Random seed for shuffling.",
+                    },
+                ),
             },
         }
 
@@ -42,4 +54,3 @@ class LumiShufflePrompt:
         # Join back together
         result = " ".join(tokens)
         return (result,)
-
