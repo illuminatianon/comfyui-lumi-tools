@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-lumi-tools"
-version = "1.0.0"
+version = "1.0.1"
 description = "A ComfyUI custom node pack by Lumi."
 license = "GPL-3.0"
 readme = "README.md"
