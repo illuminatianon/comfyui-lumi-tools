@@ -42,15 +42,9 @@ class LumiShufflePrompt:
     FUNCTION = "shuffle"
 
     def shuffle(self, text: str, seed: int) -> tuple[str]:
-        # Normalize to single line: replace newlines with spaces
-        text = text.replace("\n", " ").replace("\r", " ")
-        # Strip commas
-        text = text.replace(",", "")
-        # Tokenize by splitting on spaces (filter out empty tokens)
+        text = text.replace("\n", " ").replace("\r", " ").replace(",", "")
         tokens = [t for t in text.split(" ") if t]
-        # Shuffle with seed
         rng = random.Random(seed)
         rng.shuffle(tokens)
-        # Join back together
         result = " ".join(tokens)
         return (result,)
