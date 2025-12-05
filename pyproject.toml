@@ -31,7 +31,8 @@ Icon = ""
 version_toml = ["pyproject.toml:project.version"]
 branch = "master"
 commit_message = "chore(release): {version} [skip ci]"
-build_command = ""
+build_command = "pip install uv && uv lock"
+assets = ["uv.lock"]
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"
