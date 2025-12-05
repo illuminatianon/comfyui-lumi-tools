@@ -37,6 +37,10 @@ Processes wildcard prompts using [dynamicprompts](https://github.com/adieyal/dyn
 
 Processes wildcards with inline LoRA support and encodes to conditioning.
 
+### Lumi Seed
+
+Outputs a seed value with `control_after_generate` support (randomize, increment, decrement, fixed).
+
 ### Lumi Show Text
 
 Displays text output for debugging.
