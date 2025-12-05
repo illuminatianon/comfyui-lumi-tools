@@ -1,12 +1,19 @@
 {
-  "python.languageServer": "None",
-
-  "editor.formatOnSave": true,
-  "python.formatting.provider": "none",
-
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticMode": "off",
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.stubPath": [],
   "ruff.enable": true,
   "ruff.lint.enable": true,
-  "ruff.path": ["uv", "run", "ruff"],
-
-  "black-formatter.path": ["uv", "run", "black"]
+  "ruff.path": [
+    "uv",
+    "run",
+    "ruff"
+  ],
+  "black-formatter.path": [
+    "uv",
+    "run",
+    "black"
+  ]
 }
