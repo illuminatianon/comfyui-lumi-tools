@@ -7,14 +7,14 @@ A collection of utility nodes for ComfyUI.
 1. Clone or symlink this repository into your ComfyUI `custom_nodes` folder
 2. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 3. Restart ComfyUI
 
 ### Development Setup
 
 ```bash
-pip install -r requirements-dev.txt
+uv sync --dev
 ```
 
 ## Nodes
