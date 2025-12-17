@@ -39,4 +39,3 @@ class LumiSeed:
 
     def execute(self, seed: int) -> tuple[int]:
         return (seed,)
-

@@ -1,4 +1,6 @@
 from .nodes import (
+    LumiLLMPromptProcessor,
+    LumiOpenRouterProvider,
     LumiSeed,
     LumiShowText,
     LumiShufflePrompt,
@@ -10,6 +12,8 @@ NODE_CLASS_MAPPINGS = {
     "LumiShowText": LumiShowText,
     "LumiShufflePrompt": LumiShufflePrompt,
     "LumiWildcardProcessor": LumiWildcardProcessor,
+    "LumiOpenRouterProvider": LumiOpenRouterProvider,
+    "LumiLLMPromptProcessor": LumiLLMPromptProcessor,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -17,6 +21,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LumiShowText": "Lumi Show Text",
     "LumiShufflePrompt": "Lumi Shuffle Prompt",
     "LumiWildcardProcessor": "Lumi Wildcard Processor",
+    "LumiOpenRouterProvider": "Lumi OpenRouter Provider",
+    "LumiLLMPromptProcessor": "Lumi LLM Prompt Processor",
 }
 
 WEB_DIRECTORY = "./js"
