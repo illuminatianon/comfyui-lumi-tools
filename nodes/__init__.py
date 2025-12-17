@@ -5,6 +5,7 @@ from .seed import LumiSeed
 from .show_text import LumiShowText
 from .shuffle_prompt import LumiShufflePrompt
 from .wildcard_processor import LumiWildcardProcessor
+from .wrap_text import LumiWrapText
 
 __all__ = [
     "LumiSeed",
@@ -13,4 +14,5 @@ __all__ = [
     "LumiWildcardProcessor",
     "LumiOpenRouterProvider",
     "LumiLLMPromptProcessor",
+    "LumiWrapText",
 ]
