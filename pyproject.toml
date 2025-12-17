@@ -9,7 +9,7 @@ description = "A ComfyUI custom node pack by Lumi."
 license = "GPL-3.0"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["dynamicprompts"]
+dependencies = ["dynamicprompts", "requests"]
 
 [project.urls]
 Repository = "https://github.com/illuminatianon/comfyui-lumi-tools"

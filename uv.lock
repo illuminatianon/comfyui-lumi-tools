@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 
 [[package]]
@@ -187,6 +187,7 @@ version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "dynamicprompts" },
+    { name = "requests" },
 ]
 
 [package.dev-dependencies]
@@ -197,7 +198,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dynamicprompts" }]
+requires-dist = [
+    { name = "dynamicprompts" },
+    { name = "requests" },
+]
 
 [package.metadata.requires-dev]
 dev = [
