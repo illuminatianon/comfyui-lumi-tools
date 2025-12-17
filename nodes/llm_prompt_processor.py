@@ -22,14 +22,16 @@ class LumiLLMPromptProcessor:
                 "instructions": (
                     "STRING",
                     {
-                        "multiline": True,
-                        "default": "You are a helpful assistant.",
+                        "forceInput": True,
                         "tooltip": "System instructions for the LLM",
                     },
                 ),
                 "prompt": (
                     "STRING",
-                    {"multiline": True, "default": "", "tooltip": "User prompt to process"},
+                    {
+                        "forceInput": True,
+                        "tooltip": "User prompt to process",
+                    },
                 ),
                 "seed": (
                     "INT",
