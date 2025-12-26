@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "comfyui-lumi-tools"
 version = "1.0.1"
@@ -5,13 +9,20 @@ description = "A ComfyUI custom node pack by Lumi."
 license = "GPL-3.0"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["dynamicprompts"]
+dependencies = ["dynamicprompts", "requests"]
 
 [project.urls]
 Repository = "https://github.com/illuminatianon/comfyui-lumi-tools"
 
-[tool.setuptools]
-packages = []
+[dependency-groups]
+dev = [
+    "python-semantic-release",
+    "black",
+    "ruff",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
 
 [tool.black]
 line-length = 100
@@ -31,7 +42,6 @@ Icon = ""
 version_toml = ["pyproject.toml:project.version"]
 branch = "master"
 commit_message = "chore(release): {version} [skip ci]"
-build_command = ""
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"

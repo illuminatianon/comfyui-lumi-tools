@@ -7,14 +7,14 @@ A collection of utility nodes for ComfyUI.
 1. Clone or symlink this repository into your ComfyUI `custom_nodes` folder
 2. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   uv sync
    ```
 3. Restart ComfyUI
 
 ### Development Setup
 
 ```bash
-pip install -r requirements-dev.txt
+uv sync --dev
 ```
 
 ## Nodes
@@ -36,6 +36,10 @@ Processes wildcard prompts using [dynamicprompts](https://github.com/adieyal/dyn
 ### Lumi Wildcard Encode
 
 Processes wildcards with inline LoRA support and encodes to conditioning.
+
+### Lumi Seed
+
+Outputs a seed value with `control_after_generate` support (randomize, increment, decrement, fixed).
 
 ### Lumi Show Text
 

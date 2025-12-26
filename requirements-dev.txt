@@ -1,4 +1,0 @@
--r requirements.txt
-python-semantic-release
-black
-ruff
