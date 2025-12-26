@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "comfyui-lumi-tools"
-version = "1.0.1"
+version = "1.1.0"
 description = "A ComfyUI custom node pack by Lumi."
 license = "GPL-3.0"
 readme = "README.md"
