@@ -1,4 +1,4 @@
-# Lumi Tools v0.1.0
+# Lumi Tools
 
 A collection of utility nodes for ComfyUI.
 
@@ -21,7 +21,9 @@ uv sync --dev
 
 All nodes appear under **Lumi/** in the node menu.
 
-### Lumi Shuffle Prompt
+### Prompt & Text Nodes
+
+#### Lumi Shuffle Prompt
 
 Shuffles tokens in a prompt string. Useful for randomizing tag order.
 
@@ -29,21 +31,59 @@ Shuffles tokens in a prompt string. Useful for randomizing tag order.
 - Splits by spaces, shuffles, and rejoins
 - Seeded for reproducibility
 
-### Lumi Wildcard Processor
+#### Lumi Wildcard Processor
 
 Processes wildcard prompts using [dynamicprompts](https://github.com/adieyal/dynamicprompts).
 
-### Lumi Wildcard Encode
+#### Lumi Wrap Text
 
-Processes wildcards with inline LoRA support and encodes to conditioning.
+Wraps text with optional prefix and suffix strings.
 
-### Lumi Seed
+#### Lumi Show Text
+
+Displays text output for debugging.
+
+### LLM Nodes
+
+#### Lumi OpenRouter Provider
+
+Provides OpenRouter API configuration for LLM inference. Requires `OPENROUTER_API_KEY` environment variable.
+
+#### Lumi LLM Prompt Processor
+
+Processes prompts using LLM inference via OpenRouter. Useful for prompt enhancement and rewriting.
+
+### Image Generation Nodes
+
+#### Lumi Gemini Imagen Config
+
+Configuration node for Gemini image generation models. Sets aspect ratio (default: 16:9), image size (default: 2K), temperature, and other generation parameters.
+
+#### Lumi Google Imagen Provider
+
+Direct Google AI Studio API provider for image generation. Uses `GOOGLE_API_KEY` environment variable. Much faster than OpenRouter (~4x).
+
+Available models:
+- `gemini-3-pro-image-preview` (default, supports up to 4K)
+- `gemini-2.5-flash-image` (1K only)
+
+#### Lumi OpenRouter Imagen Provider
+
+OpenRouter API provider for Gemini image generation. Uses `OPENROUTER_API_KEY` environment variable.
+
+#### Lumi LLM Imagen Processor
+
+Generates images using configured Gemini imagen providers. Connects to provider and config nodes.
+
+### Utility Nodes
+
+#### Lumi Seed
 
 Outputs a seed value with `control_after_generate` support (randomize, increment, decrement, fixed).
 
-### Lumi Show Text
+#### Lumi Save Image
 
-Displays text output for debugging.
+Saves images as PNG with workflow metadata. If PNG exceeds 4MB, also saves a JPG version. Path defaults to `%year%-%month%-%day%` subfolder.
 
 ## Configuring Wildcard Paths
 
