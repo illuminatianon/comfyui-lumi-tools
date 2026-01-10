@@ -83,7 +83,7 @@ Outputs a seed value with `control_after_generate` support (randomize, increment
 
 #### Lumi Save Image
 
-Saves images as PNG with workflow metadata. If PNG exceeds 4MB, also saves a JPG version. Path defaults to `%year%-%month%-%day%` subfolder.
+Saves images as PNG with workflow metadata. If PNG exceeds 4MB, also saves a JPG version with configurable quality (default 100). Directory and filename are separate widgets, each supporting ComfyUI token replacements. Directory defaults to `%year%-%month%-%day%`.
 
 ## Configuring Wildcard Paths
 
