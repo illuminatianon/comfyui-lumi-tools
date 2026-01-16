@@ -39,6 +39,10 @@ Processes wildcard prompts using [dynamicprompts](https://github.com/adieyal/dyn
 
 Wraps text with optional prefix and suffix strings.
 
+#### Lumi Text Input
+
+Provides an arbitrary multiline text input.
+
 #### Lumi Show Text
 
 Displays text output for debugging.
@@ -76,6 +80,10 @@ OpenRouter API provider for Gemini image generation. Uses `OPENROUTER_API_KEY` e
 Generates images using configured Gemini imagen providers. Connects to provider and config nodes.
 
 ### Utility Nodes
+
+#### Lumi Noise To Seed
+
+Extracts an integer seed from a NOISE object for nodes that expect an INT seed.
 
 #### Lumi Seed
 
