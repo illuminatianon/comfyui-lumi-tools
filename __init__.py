@@ -3,20 +3,24 @@ from .nodes import (
     LumiGoogleImagenProvider,
     LumiLLMImagenProcessor,
     LumiLLMPromptProcessor,
+    LumiNoiseToSeed,
     LumiOpenRouterImagenProvider,
     LumiOpenRouterProvider,
     LumiSaveImage,
     LumiSeed,
     LumiShowText,
     LumiShufflePrompt,
+    LumiTextInput,
     LumiWildcardProcessor,
     LumiWrapText,
 )
 
 NODE_CLASS_MAPPINGS = {
+    "LumiNoiseToSeed": LumiNoiseToSeed,
     "LumiSeed": LumiSeed,
     "LumiShowText": LumiShowText,
     "LumiShufflePrompt": LumiShufflePrompt,
+    "LumiTextInput": LumiTextInput,
     "LumiWildcardProcessor": LumiWildcardProcessor,
     "LumiOpenRouterProvider": LumiOpenRouterProvider,
     "LumiLLMPromptProcessor": LumiLLMPromptProcessor,
@@ -29,9 +33,11 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "LumiNoiseToSeed": "Lumi Noise To Seed",
     "LumiSeed": "Lumi Seed",
     "LumiShowText": "Lumi Show Text",
     "LumiShufflePrompt": "Lumi Shuffle Prompt",
+    "LumiTextInput": "Lumi Text Input",
     "LumiWildcardProcessor": "Lumi Wildcard Processor",
     "LumiOpenRouterProvider": "Lumi OpenRouter Provider",
     "LumiLLMPromptProcessor": "Lumi LLM Prompt Processor",

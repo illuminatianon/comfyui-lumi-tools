@@ -22,14 +22,16 @@ class LumiLLMPromptProcessor:
                 "instructions": (
                     "STRING",
                     {
-                        "forceInput": True,
+                        "default": "",
+                        "multiline": True,
                         "tooltip": "System instructions for the LLM",
                     },
                 ),
                 "prompt": (
                     "STRING",
                     {
-                        "forceInput": True,
+                        "default": "",
+                        "multiline": True,
                         "tooltip": "User prompt to process",
                     },
                 ),

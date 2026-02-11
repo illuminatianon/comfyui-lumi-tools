@@ -4,6 +4,7 @@ Lumi Save Image node - saves PNG with optional JPG fallback for large files.
 
 import json
 import os
+from copy import deepcopy
 
 import folder_paths
 import numpy as np
@@ -17,7 +18,7 @@ SIZE_THRESHOLD_BYTES = 4 * 1024 * 1024
 class LumiSaveImage:
     """
     Save images to disk. If PNG exceeds 4MB, also saves a JPG version.
-    Path is a separate widget for clarity.
+    Separate widgets handle directory and filename.
     """
 
     def __init__(self):
@@ -30,27 +31,30 @@ class LumiSaveImage:
         return {
             "required": {
                 "images": ("IMAGE",),
-                "path": (
+                "directory": (
                     "STRING",
                     {
                         "default": "%year%-%month%-%day%",
-                        "tooltip": "Subfolder path (e.g., 'my_project/renders')",
+                        "tooltip": "Output subfolder (e.g., 'my_project/renders')",
                     },
                 ),
-                "filename_prefix": (
+                "filename": (
                     "STRING",
-                    {"default": "ComfyUI", "tooltip": "Prefix for the filename"},
+                    {
+                        "default": "ComfyUI",
+                        "tooltip": "Base filename prefix for the saved images",
+                    },
                 ),
             },
             "optional": {
                 "jpg_quality": (
                     "INT",
                     {
-                        "default": 90,
+                        "default": 100,
                         "min": 1,
                         "max": 100,
                         "step": 1,
-                        "tooltip": "JPEG quality (1-100) for fallback saves",
+                        "tooltip": "JPEG quality (1-100) when PNG exceeds 4MB",
                     },
                 ),
             },
@@ -66,21 +70,21 @@ class LumiSaveImage:
     def save_images(
         self,
         images,
-        path="",
-        filename_prefix="ComfyUI",
-        jpg_quality=90,
+        directory="",
+        filename="ComfyUI",
+        jpg_quality=100,
         prompt=None,
         extra_pnginfo=None,
     ):
-        # Combine path and filename_prefix
-        if path:
-            full_prefix = os.path.join(path, filename_prefix)
+        # Combine directory and filename
+        if directory:
+            full_prefix = os.path.join(directory, filename)
         else:
-            full_prefix = filename_prefix
+            full_prefix = filename
 
         (
             full_output_folder,
-            filename,
+            resolved_filename,
             counter,
             subfolder,
             _,
@@ -89,6 +93,11 @@ class LumiSaveImage:
         )
 
         results = []
+
+        # Snapshot metadata payloads once per node execution so they don't drift if
+        # upstream objects are mutated while images are being written.
+        prompt_snapshot = deepcopy(prompt) if prompt is not None else None
+        extra_pnginfo_snapshot = deepcopy(extra_pnginfo) if extra_pnginfo is not None else None
 
         for batch_number, image in enumerate(images):
             # Convert tensor to PIL Image
@@ -102,17 +111,17 @@ class LumiSaveImage:
 
                 if not args.disable_metadata:
                     metadata = PngInfo()
-                    if prompt is not None:
-                        metadata.add_text("prompt", json.dumps(prompt))
-                    if extra_pnginfo is not None:
-                        for x in extra_pnginfo:
-                            metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                    if prompt_snapshot is not None:
+                        metadata.add_text("prompt", json.dumps(prompt_snapshot))
+                    if extra_pnginfo_snapshot is not None:
+                        for x in extra_pnginfo_snapshot:
+                            metadata.add_text(x, json.dumps(extra_pnginfo_snapshot[x]))
             except Exception:
                 # If we can't access args, just skip metadata
                 pass
 
             # Generate filename
-            filename_with_batch = filename.replace("%batch_num%", str(batch_number))
+            filename_with_batch = resolved_filename.replace("%batch_num%", str(batch_number))
             png_file = f"{filename_with_batch}_{counter:05}_.png"
             png_path = os.path.join(full_output_folder, png_file)
 

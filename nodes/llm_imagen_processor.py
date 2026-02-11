@@ -294,7 +294,8 @@ class LumiLLMImagenProcessor:
                 "prompt": (
                     "STRING",
                     {
-                        "forceInput": True,
+                        "default": "",
+                        "multiline": True,
                         "tooltip": "User prompt describing the image to generate",
                     },
                 ),
@@ -312,7 +313,8 @@ class LumiLLMImagenProcessor:
                 "instructions": (
                     "STRING",
                     {
-                        "forceInput": True,
+                        "default": "",
+                        "multiline": True,
                         "tooltip": "System instructions for the model (optional)",
                     },
                 ),
