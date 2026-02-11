@@ -4,6 +4,7 @@ Lumi Save Image node - saves PNG with optional JPG fallback for large files.
 
 import json
 import os
+from copy import deepcopy
 
 import folder_paths
 import numpy as np
@@ -93,6 +94,11 @@ class LumiSaveImage:
 
         results = []
 
+        # Snapshot metadata payloads once per node execution so they don't drift if
+        # upstream objects are mutated while images are being written.
+        prompt_snapshot = deepcopy(prompt) if prompt is not None else None
+        extra_pnginfo_snapshot = deepcopy(extra_pnginfo) if extra_pnginfo is not None else None
+
         for batch_number, image in enumerate(images):
             # Convert tensor to PIL Image
             i = 255.0 * image.cpu().numpy()
@@ -105,11 +111,11 @@ class LumiSaveImage:
 
                 if not args.disable_metadata:
                     metadata = PngInfo()
-                    if prompt is not None:
-                        metadata.add_text("prompt", json.dumps(prompt))
-                    if extra_pnginfo is not None:
-                        for x in extra_pnginfo:
-                            metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                    if prompt_snapshot is not None:
+                        metadata.add_text("prompt", json.dumps(prompt_snapshot))
+                    if extra_pnginfo_snapshot is not None:
+                        for x in extra_pnginfo_snapshot:
+                            metadata.add_text(x, json.dumps(extra_pnginfo_snapshot[x]))
             except Exception:
                 # If we can't access args, just skip metadata
                 pass
