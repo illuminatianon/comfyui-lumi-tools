@@ -6,6 +6,7 @@ from .llm_imagen_processor import (
     LumiOpenRouterImagenProvider,
 )
 from .llm_prompt_processor import LumiLLMPromptProcessor
+from .load_image import LumiLoadImage
 from .noise_to_seed import LumiNoiseToSeed
 from .openrouter_provider import LumiOpenRouterProvider
 from .save_image import LumiSaveImage
@@ -30,5 +31,6 @@ __all__ = [
     "LumiOpenRouterImagenProvider",
     "LumiGoogleImagenProvider",
     "LumiLLMImagenProcessor",
+    "LumiLoadImage",
     "LumiSaveImage",
 ]

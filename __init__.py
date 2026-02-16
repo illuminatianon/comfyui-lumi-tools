@@ -3,6 +3,7 @@ from .nodes import (
     LumiGoogleImagenProvider,
     LumiLLMImagenProcessor,
     LumiLLMPromptProcessor,
+    LumiLoadImage,
     LumiNoiseToSeed,
     LumiOpenRouterImagenProvider,
     LumiOpenRouterProvider,
@@ -29,6 +30,7 @@ NODE_CLASS_MAPPINGS = {
     "LumiOpenRouterImagenProvider": LumiOpenRouterImagenProvider,
     "LumiGoogleImagenProvider": LumiGoogleImagenProvider,
     "LumiLLMImagenProcessor": LumiLLMImagenProcessor,
+    "LumiLoadImage": LumiLoadImage,
     "LumiSaveImage": LumiSaveImage,
 }
 
@@ -46,6 +48,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LumiOpenRouterImagenProvider": "Lumi OpenRouter Imagen Provider",
     "LumiGoogleImagenProvider": "Lumi Google Imagen Provider",
     "LumiLLMImagenProcessor": "Lumi LLM Imagen Processor",
+    "LumiLoadImage": "Lumi Load Image",
     "LumiSaveImage": "Lumi Save Image",
 }
 

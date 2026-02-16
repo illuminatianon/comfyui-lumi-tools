@@ -318,6 +318,12 @@ class LumiLLMImagenProcessor:
                         "tooltip": "System instructions for the model (optional)",
                     },
                 ),
+                "input_images": (
+                    "LUMI_IMAGE_CHAIN",
+                    {
+                        "tooltip": "Optional ordered image chain from Lumi Load Image nodes",
+                    },
+                ),
             },
         }
 
@@ -339,6 +345,7 @@ class LumiLLMImagenProcessor:
         prompt: str,
         seed: int,
         instructions: str = "",
+        input_images: Dict[str, Any] | None = None,
     ) -> Tuple[torch.Tensor, str]:
         """Generate images using the configured provider and settings."""
         # Validate compatibility
@@ -350,10 +357,26 @@ class LumiLLMImagenProcessor:
 
         # Route to appropriate provider
         provider_type = provider.get("provider_type", "")
+        image_data_urls = self._extract_input_image_data_urls(input_images)
+
         if provider_type == "google_imagen":
-            return self._generate_google(provider, config, prompt, seed, instructions)
+            return self._generate_google(
+                provider,
+                config,
+                prompt,
+                seed,
+                instructions,
+                image_data_urls,
+            )
         elif provider_type == "openrouter_imagen":
-            return self._generate_openrouter(provider, config, prompt, seed, instructions)
+            return self._generate_openrouter(
+                provider,
+                config,
+                prompt,
+                seed,
+                instructions,
+                image_data_urls,
+            )
         else:
             raise ValueError(f"Unknown provider type: {provider_type}")
 
@@ -364,6 +387,7 @@ class LumiLLMImagenProcessor:
         prompt: str,
         seed: int,
         instructions: str,
+        input_image_data_urls: list[str],
     ) -> Tuple[torch.Tensor, str]:
         """Generate images via direct Google AI Studio API."""
         # Build prompt text
@@ -371,9 +395,21 @@ class LumiLLMImagenProcessor:
         if instructions.strip():
             full_prompt = f"{instructions.strip()}\n\n{full_prompt}"
 
+        parts: list[Dict[str, Any]] = [{"text": full_prompt}]
+        for data_url in input_image_data_urls:
+            b64_data = data_url.split(",", maxsplit=1)[1] if "," in data_url else data_url
+            parts.append(
+                {
+                    "inlineData": {
+                        "mimeType": "image/png",
+                        "data": b64_data,
+                    }
+                }
+            )
+
         # Build payload for Google API
         payload = {
-            "contents": [{"parts": [{"text": full_prompt}]}],
+            "contents": [{"parts": parts}],
             "generationConfig": {
                 "responseModalities": ["Image", "Text"],
                 "temperature": config.get("temperature", 1.0),
@@ -460,13 +496,26 @@ class LumiLLMImagenProcessor:
         prompt: str,
         seed: int,
         instructions: str,
+        input_image_data_urls: list[str],
     ) -> Tuple[torch.Tensor, str]:
         """Generate images via OpenRouter API."""
         # Build messages
         messages = []
         if instructions.strip():
             messages.append({"role": "system", "content": instructions.strip()})
-        messages.append({"role": "user", "content": prompt.strip()})
+
+        if input_image_data_urls:
+            user_content: list[Dict[str, Any]] = [{"type": "text", "text": prompt.strip()}]
+            for data_url in input_image_data_urls:
+                user_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_url},
+                    }
+                )
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": prompt.strip()})
 
         # Build payload
         payload = {
@@ -545,3 +594,41 @@ class LumiLLMImagenProcessor:
         pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
         np_image = np.array(pil_image).astype(np.float32) / 255.0
         return torch.from_numpy(np_image).unsqueeze(0)  # (1, H, W, C)
+
+    def _extract_input_image_data_urls(self, input_images: Dict[str, Any] | None) -> list[str]:
+        """Extract ordered input images and encode them as PNG data URLs."""
+        if not input_images or not isinstance(input_images, dict):
+            return []
+
+        chain = input_images.get("images", [])
+        if not isinstance(chain, list):
+            return []
+
+        data_urls: list[str] = []
+        for item in chain:
+            if not isinstance(item, torch.Tensor):
+                continue
+
+            if item.ndim == 4:
+                tensors = [item[i] for i in range(item.shape[0])]
+            elif item.ndim == 3:
+                tensors = [item]
+            else:
+                continue
+
+            for tensor in tensors:
+                data_urls.append(self._encode_tensor_to_data_url(tensor))
+
+        return data_urls
+
+    def _encode_tensor_to_data_url(self, image_tensor: torch.Tensor) -> str:
+        """Encode a ComfyUI image tensor as a PNG data URL."""
+        np_image = image_tensor.cpu().numpy()
+        np_image = np.clip(np_image, 0.0, 1.0)
+        np_image = (np_image * 255.0).astype(np.uint8)
+
+        pil_image = Image.fromarray(np_image)
+        output = BytesIO()
+        pil_image.save(output, format="PNG")
+        b64_data = base64.b64encode(output.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{b64_data}"
