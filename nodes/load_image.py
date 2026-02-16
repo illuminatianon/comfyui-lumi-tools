@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from typing import Any, Iterable
 
 import folder_paths
+import node_helpers
 import numpy as np
 import torch
 from PIL import Image, ImageOps, ImageSequence
@@ -25,12 +27,14 @@ class LumiLoadImage:
 
     @classmethod
     def INPUT_TYPES(cls):
-        files = folder_paths.get_filename_list("input")
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = folder_paths.filter_files_content_types(files, ["image"])
 
         return {
             "required": {
                 "image": (
-                    files,
+                    sorted(files),
                     {
                         "image_upload": True,
                         "tooltip": "Image file to load from ComfyUI input directory",
@@ -64,29 +68,42 @@ class LumiLoadImage:
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[torch.Tensor]]]:
         image_path = folder_paths.get_annotated_filepath(image)
 
-        loaded = Image.open(image_path)
+        loaded = node_helpers.pillow(Image.open, image_path)
         output_images = []
         output_masks = []
-        excluded_formats = ["MPO"]
+        width, height = None, None
 
         for frame in ImageSequence.Iterator(loaded):
-            frame = ImageOps.exif_transpose(frame)
+            frame = node_helpers.pillow(ImageOps.exif_transpose, frame)
 
             if frame.mode == "I":
                 frame = frame.point(lambda i: i * (1 / 255))
 
             rgb = frame.convert("RGB")
+            if len(output_images) == 0:
+                width = rgb.size[0]
+                height = rgb.size[1]
+
+            if rgb.size[0] != width or rgb.size[1] != height:
+                continue
+
             np_image = np.array(rgb).astype(np.float32) / 255.0
             output_images.append(torch.from_numpy(np_image)[None, ...])
 
             if "A" in frame.getbands():
                 alpha = np.array(frame.getchannel("A")).astype(np.float32) / 255.0
                 mask = 1.0 - torch.from_numpy(alpha)
+            elif frame.mode == "P" and "transparency" in frame.info:
+                alpha = np.array(frame.convert("RGBA").getchannel("A")).astype(np.float32) / 255.0
+                mask = 1.0 - torch.from_numpy(alpha)
             else:
                 mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
             output_masks.append(mask.unsqueeze(0))
 
-        if len(output_images) > 1 and getattr(loaded, "format", None) not in excluded_formats:
+            if loaded.format == "MPO":
+                break
+
+        if len(output_images) > 1:
             image_tensor = torch.cat(output_images, dim=0)
             mask_tensor = torch.cat(output_masks, dim=0)
         else:
