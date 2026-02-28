@@ -32,6 +32,12 @@ IMAGEN_MODELS_OPENROUTER = [
         "max_resolution": "4K",
     },
     {
+        "id": "google/gemini-3.1-flash-image-preview",
+        "name": "Gemini 3.1 Flash Image Preview",
+        "family": "gemini",
+        "max_resolution": "4K",
+    },
+    {
         "id": "google/gemini-2.5-flash-image",
         "name": "Gemini 2.5 Flash Image (Nano Banana)",
         "family": "gemini",
@@ -44,6 +50,12 @@ IMAGEN_MODELS_GOOGLE = [
     {
         "id": "gemini-3-pro-image-preview",
         "name": "Gemini 3.0 Image (Nano Banana Pro)",
+        "family": "gemini",
+        "max_resolution": "4K",
+    },
+    {
+        "id": "gemini-3.1-flash-image-preview",
+        "name": "Gemini 3.1 Flash Image Preview",
         "family": "gemini",
         "max_resolution": "4K",
     },
@@ -421,7 +433,7 @@ class LumiLLMImagenProcessor:
         }
 
         # Add imageSize only for models that support higher resolutions
-        # gemini-2.5-flash only supports 1K, gemini-3-pro supports up to 4K
+        # gemini-2.5-flash only supports 1K, gemini-3.x image preview models support up to 4K
         image_size = config.get("image_size", "1K")
         max_resolution = provider.get("max_resolution", "1K")
         resolution_order = ["1K", "2K", "4K"]

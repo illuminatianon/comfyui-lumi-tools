@@ -69,6 +69,7 @@ Direct Google AI Studio API provider for image generation. Uses `GOOGLE_API_KEY`
 
 Available models:
 - `gemini-3-pro-image-preview` (default, supports up to 4K)
+- `gemini-3.1-flash-image-preview` (supports up to 4K)
 - `gemini-2.5-flash-image` (1K only)
 
 #### Lumi OpenRouter Imagen Provider
