@@ -29,6 +29,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
