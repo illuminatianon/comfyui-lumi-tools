@@ -4,9 +4,24 @@ Base inference abstraction for LLM providers.
 
 import json
 from abc import ABC, abstractmethod
-from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from typing import Any, Optional
 
 import requests
+
+try:
+    import comfy.model_management as model_management  # type: ignore[import-not-found]
+
+    HAS_MODEL_MANAGEMENT = True
+except ImportError:
+    model_management = None
+    HAS_MODEL_MANAGEMENT = False
+
+
+def _throw_if_processing_interrupted() -> None:
+    """Raise ComfyUI's interrupt exception when generation is cancelled."""
+    if HAS_MODEL_MANAGEMENT and model_management is not None:
+        model_management.throw_exception_if_processing_interrupted()
 
 
 class LLMProvider(ABC):
@@ -49,6 +64,8 @@ class OpenRouterProvider(LLMProvider):
         if not self.validate_config():
             raise ValueError("Invalid OpenRouter configuration")
 
+        _throw_if_processing_interrupted()
+
         # Combine instructions and prompt
         messages = []
         if instructions.strip():
@@ -75,9 +92,8 @@ class OpenRouterProvider(LLMProvider):
         }
 
         try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=60
-            )
+            response = self._post_with_interrupt_polling(headers=headers, payload=payload)
+            _throw_if_processing_interrupted()
             response.raise_for_status()
 
             result = response.json()
@@ -93,6 +109,29 @@ class OpenRouterProvider(LLMProvider):
             raise ValueError(f"Invalid response format from OpenRouter: {str(e)}") from e
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse OpenRouter response: {str(e)}") from e
+
+    def _post_with_interrupt_polling(
+        self, headers: dict[str, str], payload: dict[str, Any]
+    ) -> requests.Response:
+        """Run the blocking request in a worker thread and poll for ComfyUI interrupts."""
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(
+            requests.post,
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
+
+        try:
+            while True:
+                _throw_if_processing_interrupted()
+                try:
+                    return future.result(timeout=0.25)
+                except TimeoutError:
+                    continue
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 def create_provider(provider_type: str, **kwargs) -> LLMProvider:
