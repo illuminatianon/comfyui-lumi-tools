@@ -17,6 +17,8 @@ import requests
 import torch
 from PIL import Image
 
+from .llm_inference import post_json_with_retries
+
 # Hardcoded list of Gemini imagen models available on OpenRouter
 IMAGEN_MODELS_OPENROUTER = [
     {
@@ -320,6 +322,13 @@ class LumiLLMImagenProcessor:
                         "tooltip": "Seed for generation (forces reprocessing)",
                     },
                 ),
+                "error_mode": (
+                    ["fatal", "return_text"],
+                    {
+                        "default": "fatal",
+                        "tooltip": "fatal: raise errors. return_text: return diagnostics in text output with a placeholder image.",
+                    },
+                ),
             },
             "optional": {
                 "instructions": (
@@ -356,6 +365,7 @@ class LumiLLMImagenProcessor:
         config: Dict[str, Any],
         prompt: str,
         seed: int,
+        error_mode: str,
         instructions: str = "",
         input_images: Dict[str, Any] | None = None,
     ) -> Tuple[torch.Tensor, str]:
@@ -377,6 +387,7 @@ class LumiLLMImagenProcessor:
                 config,
                 prompt,
                 seed,
+                error_mode,
                 instructions,
                 image_data_urls,
             )
@@ -386,6 +397,7 @@ class LumiLLMImagenProcessor:
                 config,
                 prompt,
                 seed,
+                error_mode,
                 instructions,
                 image_data_urls,
             )
@@ -398,6 +410,7 @@ class LumiLLMImagenProcessor:
         config: Dict[str, Any],
         prompt: str,
         seed: int,
+        error_mode: str,
         instructions: str,
         input_image_data_urls: list[str],
     ) -> Tuple[torch.Tensor, str]:
@@ -460,20 +473,14 @@ class LumiLLMImagenProcessor:
             "Content-Type": "application/json",
         }
 
-        # Make API request
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=120)
-            if not response.ok:
-                try:
-                    error_body = response.json()
-                    error_msg = (
-                        error_body.get("error", {}).get("message")
-                        or error_body.get("message")
-                        or str(error_body)
-                    )
-                except Exception:
-                    error_msg = response.text
-                raise RuntimeError(f"Google API error ({response.status_code}): {error_msg}")
+            response = post_json_with_retries(
+                url,
+                headers=headers,
+                payload=payload,
+                timeout=120,
+                operation_name="Google",
+            )
             result = response.json()
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Google API request failed: {str(e)}") from e
@@ -482,7 +489,13 @@ class LumiLLMImagenProcessor:
         try:
             parts = result["candidates"][0]["content"]["parts"]
         except (KeyError, IndexError) as e:
-            raise ValueError(f"Invalid response format from Google API: {str(e)}") from e
+            diagnostics = self._extract_google_diagnostics(result)
+            message = f"Invalid response format from Google API: {str(e)}"
+            if diagnostics:
+                message = f"{message}. {diagnostics}"
+            if error_mode == "return_text":
+                return (self._empty_image_tensor(), message)
+            raise ValueError(message) from e
 
         text_response = ""
         image_data = None
@@ -494,7 +507,16 @@ class LumiLLMImagenProcessor:
                 image_data = part["inlineData"]["data"]
 
         if not image_data:
-            raise ValueError("No image returned from Google API")
+            diagnostics = self._extract_google_diagnostics(result)
+            message = "No image returned from Google API"
+            if diagnostics:
+                message = f"{message}. {diagnostics}"
+            if error_mode == "return_text":
+                output_text = message
+                if text_response:
+                    output_text = f"{output_text}\n\nModel text:\n{text_response}"
+                return (self._empty_image_tensor(), output_text)
+            raise ValueError(message)
 
         # Convert to tensor
         tensor = self._decode_image(image_data)
@@ -507,6 +529,7 @@ class LumiLLMImagenProcessor:
         config: Dict[str, Any],
         prompt: str,
         seed: int,
+        error_mode: str,
         instructions: str,
         input_image_data_urls: list[str],
     ) -> Tuple[torch.Tensor, str]:
@@ -553,25 +576,14 @@ class LumiLLMImagenProcessor:
             "X-Title": "ComfyUI Lumi Tools",
         }
 
-        # Make API request
         try:
-            response = requests.post(
+            response = post_json_with_retries(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers=headers,
-                json=payload,
+                payload=payload,
                 timeout=180,
+                operation_name="OpenRouter imagen",
             )
-            if not response.ok:
-                try:
-                    error_body = response.json()
-                    error_msg = (
-                        error_body.get("error", {}).get("message")
-                        or error_body.get("message")
-                        or str(error_body)
-                    )
-                except Exception:
-                    error_msg = response.text
-                raise RuntimeError(f"OpenRouter API error ({response.status_code}): {error_msg}")
             result = response.json()
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"OpenRouter API request failed: {str(e)}") from e
@@ -582,10 +594,19 @@ class LumiLLMImagenProcessor:
             text_response = choice.get("content", "") or ""
             images_data = choice.get("images", [])
         except (KeyError, IndexError) as e:
-            raise ValueError(f"Invalid response format from OpenRouter: {str(e)}") from e
+            message = f"Invalid response format from OpenRouter: {str(e)}"
+            if error_mode == "return_text":
+                return (self._empty_image_tensor(), message)
+            raise ValueError(message) from e
 
         if not images_data:
-            raise ValueError("No images returned from OpenRouter API")
+            message = "No images returned from OpenRouter API"
+            if error_mode == "return_text":
+                output_text = message
+                if text_response:
+                    output_text = f"{output_text}\n\nModel text:\n{text_response}"
+                return (self._empty_image_tensor(), output_text)
+            raise ValueError(message)
 
         # Get first image URL
         first_image = images_data[0]
@@ -644,3 +665,51 @@ class LumiLLMImagenProcessor:
         pil_image.save(output, format="PNG")
         b64_data = base64.b64encode(output.getvalue()).decode("utf-8")
         return f"data:image/png;base64,{b64_data}"
+
+    def _empty_image_tensor(self) -> torch.Tensor:
+        """Return a 1x1 black placeholder image tensor."""
+        return torch.zeros((1, 1, 1, 3), dtype=torch.float32)
+
+    def _extract_google_diagnostics(self, result: Dict[str, Any]) -> str:
+        """Extract helpful moderation and finish diagnostics from Google responses."""
+        diagnostics: list[str] = []
+
+        prompt_feedback = result.get("promptFeedback", {}) if isinstance(result, dict) else {}
+        if isinstance(prompt_feedback, dict):
+            block_reason = prompt_feedback.get("blockReason")
+            if block_reason:
+                diagnostics.append(f"blockReason={block_reason}")
+
+            safety_ratings = prompt_feedback.get("safetyRatings", [])
+            if isinstance(safety_ratings, list) and safety_ratings:
+                categories = [
+                    f"{r.get('category')}:{r.get('probability')}"
+                    for r in safety_ratings
+                    if isinstance(r, dict)
+                ]
+                categories = [c for c in categories if c]
+                if categories:
+                    diagnostics.append(f"promptSafety={', '.join(categories)}")
+
+        candidates = result.get("candidates", []) if isinstance(result, dict) else []
+        if isinstance(candidates, list) and candidates:
+            finish_reason = (
+                candidates[0].get("finishReason") if isinstance(candidates[0], dict) else None
+            )
+            if finish_reason:
+                diagnostics.append(f"finishReason={finish_reason}")
+
+            candidate_safety = (
+                candidates[0].get("safetyRatings", []) if isinstance(candidates[0], dict) else []
+            )
+            if isinstance(candidate_safety, list) and candidate_safety:
+                categories = [
+                    f"{r.get('category')}:{r.get('probability')}"
+                    for r in candidate_safety
+                    if isinstance(r, dict)
+                ]
+                categories = [c for c in categories if c]
+                if categories:
+                    diagnostics.append(f"candidateSafety={', '.join(categories)}")
+
+        return "; ".join(diagnostics)
