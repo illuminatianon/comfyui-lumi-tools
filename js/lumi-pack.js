@@ -15,8 +15,12 @@ function nodeFeedbackHandler(event) {
 
 api.addEventListener("lumi-node-feedback", nodeFeedbackHandler);
 
-app.registerExtension({
+const extension = {
     name: "Comfy.LumiPack",
+
+    async setup() {
+        return undefined;
+    },
 
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if (nodeData.name === "LumiWildcardProcessor") {
@@ -25,7 +29,9 @@ app.registerExtension({
             setupWildcardEncodeNode(nodeType, nodeData);
         }
     }
-});
+};
+
+app.registerExtension(extension);
 
 function setupWildcardProcessorNode(nodeType, nodeData) {
     const onNodeCreated = nodeType.prototype.onNodeCreated;
@@ -190,6 +196,5 @@ function setupWildcardEncodeNode(nodeType, nodeData) {
         }
     };
 }
-
 
 
