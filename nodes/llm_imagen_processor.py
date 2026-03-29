@@ -323,7 +323,7 @@ class LumiLLMImagenProcessor:
                     },
                 ),
                 "error_mode": (
-                    ["fatal", "return_text"],
+                    ["fatal", "return_text", ""],
                     {
                         "default": "fatal",
                         "tooltip": "fatal: raise errors. return_text: return diagnostics in text output with a placeholder image.",
@@ -370,6 +370,8 @@ class LumiLLMImagenProcessor:
         input_images: Dict[str, Any] | None = None,
     ) -> Tuple[torch.Tensor, str]:
         """Generate images using the configured provider and settings."""
+        error_mode = "return_text" if error_mode == "return_text" else "fatal"
+
         # Validate compatibility
         if provider.get("model_family") != config.get("config_type"):
             raise ValueError(

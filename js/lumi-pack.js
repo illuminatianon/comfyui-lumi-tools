@@ -1,6 +1,222 @@
 import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
 
+const TIMER_ENABLED_SETTING = "Lumi.InstantRunTimer.Enabled";
+const TIMER_MAX_MINUTES_SETTING = "Lumi.InstantRunTimer.MaxMinutes";
+const DEFAULT_TIMER_MINUTES = 10;
+const MIN_TIMER_MINUTES = 1;
+const MAX_TIMER_MINUTES = 240;
+
+const timerState = {
+    enabled: false,
+    maxMinutes: DEFAULT_TIMER_MINUTES,
+    remainingMs: DEFAULT_TIMER_MINUTES * 60 * 1000,
+    wasInstantRunning: false,
+    lastTickAt: 0,
+    intervalId: null,
+};
+
+function extensionManager() {
+    return app.extensionManager ?? null;
+}
+
+function getSetting(key, fallbackValue) {
+    const manager = extensionManager();
+    if (!manager?.setting) {
+        return fallbackValue;
+    }
+
+    const value = manager.setting.get(key);
+    return value ?? fallbackValue;
+}
+
+function setSetting(key, value) {
+    const manager = extensionManager();
+    if (!manager?.setting) {
+        return;
+    }
+
+    manager.setting.set(key, value);
+}
+
+function notify(summary, detail, severity = "info") {
+    const manager = extensionManager();
+    if (manager?.toast?.add) {
+        manager.toast.add({
+            severity,
+            summary,
+            detail,
+            life: 3200,
+        });
+        return;
+    }
+
+    console.log(`[Lumi Instant Timer] ${summary}: ${detail}`);
+}
+
+function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function formatRemaining(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function resetTimer() {
+    timerState.remainingMs = timerState.maxMinutes * 60 * 1000;
+}
+
+function loadTimerSettings() {
+    timerState.enabled = Boolean(getSetting(TIMER_ENABLED_SETTING, false));
+
+    const parsedMinutes = Number(getSetting(TIMER_MAX_MINUTES_SETTING, DEFAULT_TIMER_MINUTES));
+    timerState.maxMinutes = Number.isFinite(parsedMinutes)
+        ? clamp(Math.round(parsedMinutes), MIN_TIMER_MINUTES, MAX_TIMER_MINUTES)
+        : DEFAULT_TIMER_MINUTES;
+
+    setSetting(TIMER_MAX_MINUTES_SETTING, timerState.maxMinutes);
+    resetTimer();
+}
+
+function isInstantRunActive() {
+    const modernRunButton = document.querySelector("[data-testid='queue-button']");
+    if (modernRunButton) {
+        return modernRunButton.getAttribute("data-variant") === "destructive";
+    }
+
+    return Boolean(app.ui?.autoQueueEnabled && app.ui?.autoQueueMode === "instant");
+}
+
+function stopInstantRun() {
+    const modernRunButton = document.querySelector("[data-testid='queue-button']");
+    if (modernRunButton && modernRunButton.getAttribute("data-variant") === "destructive") {
+        modernRunButton.click();
+        return true;
+    }
+
+    if (app.ui) {
+        app.ui.autoQueueEnabled = false;
+        if (app.ui.autoQueueMode === "instant") {
+            app.ui.autoQueueMode = "change";
+        }
+
+        const autoQueueCheckbox = document.getElementById("autoQueueCheckbox");
+        if (autoQueueCheckbox && "checked" in autoQueueCheckbox) {
+            autoQueueCheckbox.checked = false;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+function setTimerEnabled(enabled) {
+    timerState.enabled = enabled;
+    setSetting(TIMER_ENABLED_SETTING, enabled);
+    timerState.wasInstantRunning = false;
+    timerState.lastTickAt = Date.now();
+    resetTimer();
+}
+
+function handleTimerExpiration() {
+    const didStop = stopInstantRun();
+    resetTimer();
+    timerState.wasInstantRunning = false;
+
+    notify(
+        "Instant timer finished",
+        didStop
+            ? `Stopped Run (Instant) after ${timerState.maxMinutes} minute(s).`
+            : "Timer reached 0, but no running instant mode was detected.",
+        didStop ? "warn" : "info"
+    );
+}
+
+function tickInstantTimer() {
+    const now = Date.now();
+    const isRunning = isInstantRunActive();
+
+    if (!timerState.enabled) {
+        timerState.wasInstantRunning = isRunning;
+        timerState.lastTickAt = now;
+        resetTimer();
+        return;
+    }
+
+    if (isRunning && !timerState.wasInstantRunning) {
+        resetTimer();
+        timerState.wasInstantRunning = true;
+        timerState.lastTickAt = now;
+        return;
+    }
+
+    if (!isRunning) {
+        if (timerState.wasInstantRunning) {
+            resetTimer();
+        }
+        timerState.wasInstantRunning = false;
+        timerState.lastTickAt = now;
+        return;
+    }
+
+    const deltaMs = now - timerState.lastTickAt;
+    timerState.lastTickAt = now;
+    timerState.remainingMs -= deltaMs;
+
+    if (timerState.remainingMs <= 0) {
+        handleTimerExpiration();
+    }
+}
+
+function startTimerWatcher() {
+    if (timerState.intervalId !== null) {
+        return;
+    }
+
+    timerState.lastTickAt = Date.now();
+    timerState.intervalId = window.setInterval(tickInstantTimer, 1000);
+}
+
+function configureTimerMinutes() {
+    const answer = window.prompt(
+        `Max Run (Instant) minutes (${MIN_TIMER_MINUTES}-${MAX_TIMER_MINUTES})`,
+        String(timerState.maxMinutes)
+    );
+
+    if (answer === null) {
+        return;
+    }
+
+    const parsed = Number(answer);
+    if (!Number.isFinite(parsed)) {
+        notify("Invalid value", "Please enter a valid number of minutes.", "error");
+        return;
+    }
+
+    timerState.maxMinutes = clamp(Math.round(parsed), MIN_TIMER_MINUTES, MAX_TIMER_MINUTES);
+    setSetting(TIMER_MAX_MINUTES_SETTING, timerState.maxMinutes);
+    resetTimer();
+
+    notify(
+        "Instant timer updated",
+        `Maximum Run (Instant) duration is now ${timerState.maxMinutes} minute(s).`
+    );
+}
+
+function timerToggleLabel() {
+    if (!timerState.enabled) {
+        return "Enable Instant Timer";
+    }
+
+    const status = timerState.wasInstantRunning
+        ? `Running ${formatRemaining(timerState.remainingMs)}`
+        : "Waiting";
+    return `Disable Instant Timer (${status})`;
+}
+
 // Handle feedback from Python to update widget values
 function nodeFeedbackHandler(event) {
     const nodes = app.graph._nodes_by_id;
@@ -18,7 +234,66 @@ api.addEventListener("lumi-node-feedback", nodeFeedbackHandler);
 const extension = {
     name: "Comfy.LumiPack",
 
+    settings: [
+        {
+            id: TIMER_ENABLED_SETTING,
+            category: ["Lumi", "Run", "Instant Timer"],
+            name: "Enable max duration guard",
+            tooltip: "When enabled, Run (Instant) is automatically stopped after the configured time.",
+            type: "boolean",
+            defaultValue: false,
+        },
+        {
+            id: TIMER_MAX_MINUTES_SETTING,
+            category: ["Lumi", "Run", "Instant Timer"],
+            name: "Maximum Run (Instant) minutes",
+            tooltip: "Maximum time Run (Instant) is allowed to keep auto-queueing.",
+            type: "slider",
+            attrs: {
+                min: MIN_TIMER_MINUTES,
+                max: MAX_TIMER_MINUTES,
+                step: 1,
+            },
+            defaultValue: DEFAULT_TIMER_MINUTES,
+        },
+    ],
+
+    commands: [
+        {
+            id: "Lumi.InstantTimer.Toggle",
+            label: timerToggleLabel,
+            menubarLabel: timerToggleLabel,
+            function: () => {
+                const nextEnabled = !timerState.enabled;
+                setTimerEnabled(nextEnabled);
+                notify(
+                    nextEnabled ? "Instant timer enabled" : "Instant timer disabled",
+                    nextEnabled
+                        ? `Run (Instant) will stop after ${timerState.maxMinutes} minute(s).`
+                        : "Timer disabled and reset."
+                );
+            },
+            active: () => timerState.enabled,
+        },
+        {
+            id: "Lumi.InstantTimer.ConfigureMinutes",
+            label: "Set Instant Timer Minutes",
+            menubarLabel: "Set Instant Timer Minutes",
+            function: configureTimerMinutes,
+        },
+    ],
+
+    menuCommands: [
+        {
+            path: ["Run"],
+            commands: ["Lumi.InstantTimer.Toggle", "Lumi.InstantTimer.ConfigureMinutes"],
+        },
+    ],
+
     async setup() {
+        loadTimerSettings();
+        startTimerWatcher();
+        tickInstantTimer();
         return undefined;
     },
 
@@ -196,5 +471,3 @@ function setupWildcardEncodeNode(nodeType, nodeData) {
         }
     };
 }
-
-
