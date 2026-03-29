@@ -3,10 +3,86 @@ Base inference abstraction for LLM providers.
 """
 
 import json
+import time
 from abc import ABC, abstractmethod
-from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from typing import Any, Optional
 
 import requests
+
+try:
+    import comfy.model_management as model_management  # type: ignore[import-not-found]
+
+    HAS_MODEL_MANAGEMENT = True
+except ImportError:
+    model_management = None
+    HAS_MODEL_MANAGEMENT = False
+
+
+def _throw_if_processing_interrupted() -> None:
+    """Raise ComfyUI's interrupt exception when generation is cancelled."""
+    if HAS_MODEL_MANAGEMENT and model_management is not None:
+        model_management.throw_exception_if_processing_interrupted()
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    return status_code == 408 or status_code == 425 or status_code == 429 or status_code >= 500
+
+
+def _extract_error_message(response: requests.Response) -> str:
+    try:
+        error_body = response.json()
+        return (
+            error_body.get("error", {}).get("message")
+            or error_body.get("message")
+            or str(error_body)
+        )
+    except Exception:
+        return response.text
+
+
+def post_json_with_retries(
+    url: str,
+    *,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    timeout: int,
+    operation_name: str,
+    max_attempts: int = 3,
+    base_delay_seconds: float = 1.0,
+) -> requests.Response:
+    """POST JSON with retries for transient remote failures."""
+    last_error: Exception | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        _throw_if_processing_interrupted()
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if response.ok:
+                return response
+
+            error_msg = _extract_error_message(response)
+            if not _is_retryable_status(response.status_code) or attempt == max_attempts:
+                raise RuntimeError(
+                    f"{operation_name} API error ({response.status_code}): {error_msg}"
+                )
+
+            last_error = RuntimeError(
+                f"{operation_name} API error ({response.status_code}): {error_msg}"
+            )
+        except requests.exceptions.RequestException as e:
+            if attempt == max_attempts:
+                raise RuntimeError(f"{operation_name} API request failed: {str(e)}") from e
+            last_error = e
+
+        if attempt < max_attempts:
+            time.sleep(base_delay_seconds * (2 ** (attempt - 1)))
+
+    if last_error is not None:
+        raise RuntimeError(f"{operation_name} failed after {max_attempts} attempts") from last_error
+
+    raise RuntimeError(f"{operation_name} failed after {max_attempts} attempts")
 
 
 class LLMProvider(ABC):
@@ -49,6 +125,8 @@ class OpenRouterProvider(LLMProvider):
         if not self.validate_config():
             raise ValueError("Invalid OpenRouter configuration")
 
+        _throw_if_processing_interrupted()
+
         # Combine instructions and prompt
         messages = []
         if instructions.strip():
@@ -75,9 +153,8 @@ class OpenRouterProvider(LLMProvider):
         }
 
         try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=60
-            )
+            response = self._post_with_interrupt_polling(headers=headers, payload=payload)
+            _throw_if_processing_interrupted()
             response.raise_for_status()
 
             result = response.json()
@@ -93,6 +170,30 @@ class OpenRouterProvider(LLMProvider):
             raise ValueError(f"Invalid response format from OpenRouter: {str(e)}") from e
         except json.JSONDecodeError as e:
             raise ValueError(f"Failed to parse OpenRouter response: {str(e)}") from e
+
+    def _post_with_interrupt_polling(
+        self, headers: dict[str, str], payload: dict[str, Any]
+    ) -> requests.Response:
+        """Run the blocking request in a worker thread and poll for ComfyUI interrupts."""
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(
+            post_json_with_retries,
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            payload=payload,
+            timeout=60,
+            operation_name="OpenRouter",
+        )
+
+        try:
+            while True:
+                _throw_if_processing_interrupted()
+                try:
+                    return future.result(timeout=0.25)
+                except TimeoutError:
+                    continue
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 def create_provider(provider_type: str, **kwargs) -> LLMProvider:

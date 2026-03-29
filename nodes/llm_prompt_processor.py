@@ -7,6 +7,27 @@ from typing import Any, Dict, Tuple
 
 from .llm_inference import create_provider
 
+try:
+    import comfy.model_management as model_management  # type: ignore[import-not-found]
+
+    HAS_MODEL_MANAGEMENT = True
+except ImportError:
+    model_management = None
+    HAS_MODEL_MANAGEMENT = False
+
+
+def _is_processing_interrupt_exception(error: Exception) -> bool:
+    """Return True when the error is ComfyUI's interrupt exception."""
+    if error.__class__.__name__ == "InterruptProcessingException":
+        return True
+
+    if HAS_MODEL_MANAGEMENT and model_management is not None:
+        interrupt_error = getattr(model_management, "InterruptProcessingException", None)
+        if interrupt_error is not None and isinstance(error, interrupt_error):
+            return True
+
+    return False
+
 
 class LumiLLMPromptProcessor:
     """Stateless LLM prompt processor that generates text using provider configuration."""
@@ -110,6 +131,9 @@ class LumiLLMPromptProcessor:
             return (result,)
 
         except Exception as e:
+            if _is_processing_interrupt_exception(e):
+                raise
+
             # Log error and re-raise for ComfyUI error handling
             logging.error(f"LLM Prompt Processor error: {str(e)}")
             raise RuntimeError(f"LLM processing failed: {str(e)}") from e
