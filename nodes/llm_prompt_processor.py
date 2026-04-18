@@ -123,6 +123,17 @@ class LumiLLMPromptProcessor:
                 instructions=instructions, prompt=prompt, seed=seed if seed > 0 else None
             )
 
+            if result is None:
+                raise RuntimeError(
+                    "LLM provider returned no text content (None). "
+                    "This usually means the model response did not include a message body."
+                )
+
+            if not isinstance(result, str):
+                raise RuntimeError(
+                    f"LLM provider returned unsupported output type: {type(result).__name__}"
+                )
+
             # Log successful generation (without sensitive data)
             model_info = provider.get("model_info", {})
             model_name = model_info.get("name", model_id)
