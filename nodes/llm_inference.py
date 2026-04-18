@@ -41,6 +41,62 @@ def _extract_error_message(response: requests.Response) -> str:
         return response.text
 
 
+def _normalize_message_content(content: Any) -> str | None:
+    """Normalize OpenRouter message content into plain text when possible."""
+    if content is None:
+        return None
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                item_type = item.get("type")
+                if item_type in {"text", "output_text"}:
+                    text_value = item.get("text")
+                    if isinstance(text_value, str):
+                        text_parts.append(text_value)
+            elif isinstance(item, str):
+                text_parts.append(item)
+
+        if text_parts:
+            return "".join(text_parts)
+
+    return None
+
+
+def _extract_openrouter_text(result: dict[str, Any]) -> str:
+    """Extract generated text from OpenRouter response with useful error context."""
+    choices = result.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("No response choices received from OpenRouter")
+
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        raise ValueError("Invalid OpenRouter response: first choice is not an object")
+
+    message = first_choice.get("message")
+    if not isinstance(message, dict):
+        finish_reason = first_choice.get("finish_reason")
+        raise ValueError(
+            "Invalid OpenRouter response: missing message object "
+            f"(finish_reason={finish_reason!r})"
+        )
+
+    normalized_content = _normalize_message_content(message.get("content"))
+    if normalized_content is None:
+        finish_reason = first_choice.get("finish_reason")
+        refusal = message.get("refusal")
+        raise ValueError(
+            "OpenRouter returned empty/non-text message content "
+            f"(finish_reason={finish_reason!r}, refusal={refusal!r})"
+        )
+
+    return normalized_content
+
+
 def post_json_with_retries(
     url: str,
     *,
@@ -159,10 +215,7 @@ class OpenRouterProvider(LLMProvider):
 
             result = response.json()
 
-            if "choices" in result and len(result["choices"]) > 0:
-                return result["choices"][0]["message"]["content"]
-            else:
-                raise ValueError("No response content received from OpenRouter")
+            return _extract_openrouter_text(result)
 
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"OpenRouter API request failed: {str(e)}") from e
