@@ -92,7 +92,6 @@ class LumiLoadImage(_ComfyNodeBase):
                     "image",
                     options=image_options,
                     default=image_options[0] if image_options else "",
-                    image_upload=True,
                     tooltip="Image file to load from ComfyUI input directory",
                 ),
                 LUMI_IMAGE_CHAIN_TYPE.Input(

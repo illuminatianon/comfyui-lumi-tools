@@ -76,7 +76,6 @@ if ComfyExtension is not None:
                 LumiGoogleImagenProvider,
                 LumiLLMPromptProcessor,
                 LumiLLMImagenProcessor,
-                LumiLoadImage,
                 LumiSaveImage,
                 LumiShowText,
                 LumiWildcardProcessor,
