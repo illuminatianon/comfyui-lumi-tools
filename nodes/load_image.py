@@ -12,16 +12,6 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps, ImageSequence
 
-from .v3_types import LUMI_IMAGE_CHAIN_TYPE
-
-try:
-    from comfy_api.latest import io
-except ImportError:
-    io = None
-
-
-_ComfyNodeBase = io.ComfyNode if io is not None else object
-
 
 def _list_single_image_tensors(images: torch.Tensor) -> list[torch.Tensor]:
     """Expand an IMAGE tensor into a list of single-image tensors."""
@@ -32,7 +22,7 @@ def _list_single_image_tensors(images: torch.Tensor) -> list[torch.Tensor]:
     return [images[i : i + 1] for i in range(images.shape[0])]
 
 
-class LumiLoadImage(_ComfyNodeBase):
+class LumiLoadImage:
     """Load an image and append it to an ordered image chain."""
 
     @classmethod
@@ -40,12 +30,11 @@ class LumiLoadImage(_ComfyNodeBase):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         files = folder_paths.filter_files_content_types(files, ["image"])
-        image_options = tuple(sorted(files))
 
         return {
             "required": {
                 "image": (
-                    image_options,
+                    sorted(files),
                     {
                         "image_upload": True,
                         "tooltip": "Image file to load from ComfyUI input directory",
@@ -65,54 +54,18 @@ class LumiLoadImage(_ComfyNodeBase):
     CATEGORY = "Lumi/image"
     RETURN_TYPES = ("IMAGE", "MASK", "LUMI_IMAGE_CHAIN")
     RETURN_NAMES = ("image", "mask", "image_chain")
-    FUNCTION = "execute"
+    FUNCTION = "load_image"
 
     DESCRIPTION = (
         "Loads an image like ComfyUI Load Image and emits an ordered image chain. "
         "Connect multiple Lumi Load Image nodes in sequence to preserve image order."
     )
 
-    @classmethod
-    def define_schema(cls):
-        if io is None or LUMI_IMAGE_CHAIN_TYPE is None:
-            raise RuntimeError("ComfyUI V3 API is not available")
-
-        input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        files = folder_paths.filter_files_content_types(files, ["image"])
-        image_options = tuple(sorted(files))
-
-        return io.Schema(
-            node_id="LumiLoadImage",
-            display_name="Lumi Load Image",
-            category="Lumi/image",
-            description=cls.DESCRIPTION,
-            inputs=[
-                io.Combo.Input(
-                    "image",
-                    options=image_options,
-                    default=image_options[0] if image_options else "",
-                    tooltip="Image file to load from ComfyUI input directory",
-                ),
-                LUMI_IMAGE_CHAIN_TYPE.Input(
-                    "image_chain",
-                    optional=True,
-                    tooltip="Optional chain from another Lumi Load Image node",
-                ),
-            ],
-            outputs=[
-                io.Image.Output(display_name="image"),
-                io.Mask.Output(display_name="mask"),
-                LUMI_IMAGE_CHAIN_TYPE.Output(display_name="image_chain"),
-            ],
-        )
-
-    @classmethod
-    def execute(
-        cls,
+    def load_image(
+        self,
         image: str,
         image_chain: dict[str, list[torch.Tensor]] | None = None,
-    ):
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[torch.Tensor]]]:
         image_path = folder_paths.get_annotated_filepath(image)
 
         loaded = node_helpers.pillow(Image.open, image_path)
@@ -167,17 +120,7 @@ class LumiLoadImage(_ComfyNodeBase):
 
         merged_chain.extend(_list_single_image_tensors(image_tensor))
 
-        result = (image_tensor, mask_tensor, {"images": merged_chain})
-        if io is not None:
-            return io.NodeOutput(*result)
-        return result
-
-    def load_image(
-        self,
-        image: str,
-        image_chain: dict[str, list[torch.Tensor]] | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[torch.Tensor]]]:
-        return self.__class__.execute(image, image_chain)
+        return (image_tensor, mask_tensor, {"images": merged_chain})
 
     @classmethod
     def IS_CHANGED(cls, image: str, image_chain: Any = None):
@@ -196,15 +139,7 @@ class LumiLoadImage(_ComfyNodeBase):
         return digest.hexdigest()
 
     @classmethod
-    def fingerprint_inputs(cls, image: str, image_chain: Any = None):
-        return cls.IS_CHANGED(image, image_chain)
-
-    @classmethod
     def VALIDATE_INPUTS(cls, image: str):
         if not folder_paths.exists_annotated_filepath(image):
             return f"Invalid image file: {image}"
         return True
-
-    @classmethod
-    def validate_inputs(cls, image: str):
-        return cls.VALIDATE_INPUTS(image)
