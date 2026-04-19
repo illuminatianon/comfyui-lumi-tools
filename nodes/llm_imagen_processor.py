@@ -152,13 +152,13 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
             inputs=[
                 io.Combo.Input(
                     "aspect_ratio",
-                    options=ASPECT_RATIOS,
+                    options=tuple(ASPECT_RATIOS),
                     default="16:9",
                     tooltip="Aspect ratio for generated images",
                 ),
                 io.Combo.Input(
                     "image_size",
-                    options=RESOLUTIONS,
+                    options=tuple(RESOLUTIONS),
                     default="2K",
                     tooltip="Image size tier (1K, 2K, 4K). Note: gemini-2.0-flash only supports 1K",
                 ),
@@ -268,7 +268,7 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
                 ),
                 io.Combo.Input(
                     "model",
-                    options=model_choices,
+                    options=tuple(model_choices),
                     default=model_choices[0] if model_choices else "",
                     tooltip="Select the imagen model to use",
                 ),
@@ -377,7 +377,7 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
                 ),
                 io.Combo.Input(
                     "model",
-                    options=model_choices,
+                    options=tuple(model_choices),
                     default=model_choices[0] if model_choices else "",
                     tooltip="Select the imagen model to use",
                 ),
@@ -532,7 +532,7 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
                 ),
                 io.Combo.Input(
                     "error_mode",
-                    options=["fatal", "return_text", ""],
+                    options=("fatal", "return_text", ""),
                     default="fatal",
                     tooltip="fatal: raise errors. return_text: return diagnostics in text output with a placeholder image.",
                 ),

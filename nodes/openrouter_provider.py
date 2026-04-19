@@ -103,7 +103,7 @@ class LumiOpenRouterProvider(_ComfyNodeBase):
                 ),
                 io.Combo.Input(
                     "model",
-                    options=model_choices,
+                    options=tuple(model_choices),
                     default=model_choices[0],
                     tooltip="Select the OpenRouter model to use",
                 ),
