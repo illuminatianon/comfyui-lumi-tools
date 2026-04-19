@@ -65,6 +65,8 @@ class LumiWildcardProcessor(_ComfyNodeBase):
                         "tooltip": "Random seed for wildcard processing.",
                     },
                 ),
+            },
+            "optional": {
                 "Select to add Wildcard": (wildcard_options,),
             },
             "hidden": {"unique_id": "UNIQUE_ID"},
@@ -126,6 +128,7 @@ class LumiWildcardProcessor(_ComfyNodeBase):
                     display_name="Select to add Wildcard",
                     options=wildcard_options,
                     default=wildcard_options[0] if wildcard_options else "",
+                    optional=True,
                     advanced=True,
                 ),
             ],
