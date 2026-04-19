@@ -36,7 +36,7 @@ class LumiTextInput(_ComfyNodeBase):
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
-    FUNCTION = "get_text"
+    FUNCTION = "execute"
 
     @classmethod
     def define_schema(cls):

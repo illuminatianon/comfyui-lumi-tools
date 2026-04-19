@@ -48,7 +48,7 @@ class LumiWrapText(_ComfyNodeBase):
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
-    FUNCTION = "wrap_text"
+    FUNCTION = "execute"
     CATEGORY = "Lumi/Text"
 
     DESCRIPTION = "Wraps input text by prepending and appending strings."

@@ -36,7 +36,7 @@ class LumiNoiseToSeed(_ComfyNodeBase):
 
     RETURN_TYPES = ("INT",)
     RETURN_NAMES = ("seed",)
-    FUNCTION = "extract_seed"
+    FUNCTION = "execute"
 
     @staticmethod
     def _extract_seed_value(noise: Any) -> int:

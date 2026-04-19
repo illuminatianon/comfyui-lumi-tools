@@ -47,7 +47,7 @@ class LumiShufflePrompt(_ComfyNodeBase):
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("shuffled text",)
-    FUNCTION = "shuffle"
+    FUNCTION = "execute"
 
     @staticmethod
     def _shuffle_text(text: str, seed: int) -> str:
