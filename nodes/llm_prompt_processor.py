@@ -6,6 +6,15 @@ import logging
 from typing import Any, Dict, Tuple
 
 from .llm_inference import create_provider
+from .v3_types import LLM_PROVIDER_TYPE
+
+try:
+    from comfy_api.latest import io
+except ImportError:
+    io = None
+
+
+_ComfyNodeBase = io.ComfyNode if io is not None else object
 
 try:
     import comfy.model_management as model_management  # type: ignore[import-not-found]
@@ -29,7 +38,7 @@ def _is_processing_interrupt_exception(error: Exception) -> bool:
     return False
 
 
-class LumiLLMPromptProcessor:
+class LumiLLMPromptProcessor(_ComfyNodeBase):
     """Stateless LLM prompt processor that generates text using provider configuration."""
 
     @classmethod
@@ -70,7 +79,7 @@ class LumiLLMPromptProcessor:
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text",)
-    FUNCTION = "process_prompt"
+    FUNCTION = "execute"
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
@@ -79,9 +88,46 @@ class LumiLLMPromptProcessor:
         "instructions and prompt to generate text using the configured LLM."
     )
 
-    def process_prompt(
-        self, provider: Dict[str, Any], instructions: str, prompt: str, seed: int
-    ) -> Tuple[str]:
+    @classmethod
+    def define_schema(cls):
+        if io is None or LLM_PROVIDER_TYPE is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        return io.Schema(
+            node_id="LumiLLMPromptProcessor",
+            display_name="Lumi LLM Prompt Processor",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                LLM_PROVIDER_TYPE.Input(
+                    "provider",
+                    tooltip="LLM provider configuration from a provider node",
+                ),
+                io.String.Input(
+                    "instructions",
+                    default="",
+                    multiline=True,
+                    tooltip="System instructions for the LLM",
+                ),
+                io.String.Input(
+                    "prompt",
+                    default="",
+                    multiline=True,
+                    tooltip="User prompt to process",
+                ),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    tooltip="Random seed for deterministic generation (if supported by model)",
+                ),
+            ],
+            outputs=[io.String.Output(display_name="text")],
+        )
+
+    @classmethod
+    def execute(cls, provider: Dict[str, Any], instructions: str, prompt: str, seed: int):
         """Process the prompt using the configured LLM provider."""
 
         try:
@@ -139,6 +185,8 @@ class LumiLLMPromptProcessor:
             model_name = model_info.get("name", model_id)
             logging.info(f"LLM generation completed using {model_name}")
 
+            if io is not None:
+                return io.NodeOutput(result)
             return (result,)
 
         except Exception as e:
@@ -149,8 +197,17 @@ class LumiLLMPromptProcessor:
             logging.error(f"LLM Prompt Processor error: {str(e)}")
             raise RuntimeError(f"LLM processing failed: {str(e)}") from e
 
+    def process_prompt(
+        self, provider: Dict[str, Any], instructions: str, prompt: str, seed: int
+    ) -> Tuple[str]:
+        return self.__class__.execute(provider, instructions, prompt, seed)
+
     @classmethod
     def IS_CHANGED(cls, provider, instructions, prompt, seed):
         """Determine if node should be re-executed based on inputs."""
         # Always re-execute if any input changes
+        return hash((str(provider), instructions, prompt, seed))
+
+    @classmethod
+    def fingerprint_inputs(cls, provider, instructions, prompt, seed):
         return hash((str(provider), instructions, prompt, seed))

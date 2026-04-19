@@ -18,6 +18,15 @@ import torch
 from PIL import Image
 
 from .llm_inference import post_json_with_retries
+from .v3_types import IMAGEN_CONFIG_TYPE, IMAGEN_PROVIDER_TYPE, LUMI_IMAGE_CHAIN_TYPE
+
+try:
+    from comfy_api.latest import io
+except ImportError:
+    io = None
+
+
+_ComfyNodeBase = io.ComfyNode if io is not None else object
 
 # Hardcoded list of Gemini imagen models available on OpenRouter
 IMAGEN_MODELS_OPENROUTER = [
@@ -76,7 +85,7 @@ ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"
 RESOLUTIONS = ["1K", "2K", "4K"]
 
 
-class LumiGeminiImagenConfig:
+class LumiGeminiImagenConfig(_ComfyNodeBase):
     """Configuration node for Gemini imagen models."""
 
     @classmethod
@@ -122,7 +131,7 @@ class LumiGeminiImagenConfig:
 
     RETURN_TYPES = ("IMAGEN_CONFIG",)
     RETURN_NAMES = ("config",)
-    FUNCTION = "create_config"
+    FUNCTION = "execute"
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
@@ -130,13 +139,57 @@ class LumiGeminiImagenConfig:
         "Configure aspect ratio, resolution, and generation parameters."
     )
 
-    def create_config(
-        self,
+    @classmethod
+    def define_schema(cls):
+        if io is None or IMAGEN_CONFIG_TYPE is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        return io.Schema(
+            node_id="LumiGeminiImagenConfig",
+            display_name="Lumi Gemini Imagen Config",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                io.Combo.Input(
+                    "aspect_ratio",
+                    options=ASPECT_RATIOS,
+                    default="16:9",
+                    tooltip="Aspect ratio for generated images",
+                ),
+                io.Combo.Input(
+                    "image_size",
+                    options=RESOLUTIONS,
+                    default="2K",
+                    tooltip="Image size tier (1K, 2K, 4K). Note: gemini-2.0-flash only supports 1K",
+                ),
+                io.Float.Input(
+                    "temperature",
+                    default=1.0,
+                    min=0.0,
+                    max=2.0,
+                    step=0.05,
+                    tooltip="Temperature for generation creativity",
+                ),
+                io.Float.Input(
+                    "top_p",
+                    default=1.0,
+                    min=0.0,
+                    max=1.0,
+                    step=0.01,
+                    tooltip="Top-p sampling parameter",
+                ),
+            ],
+            outputs=[IMAGEN_CONFIG_TYPE.Output(display_name="config")],
+        )
+
+    @classmethod
+    def execute(
+        cls,
         aspect_ratio: str,
         image_size: str,
         temperature: float,
         top_p: float,
-    ) -> Tuple[Dict[str, Any]]:
+    ):
         """Create Gemini imagen configuration."""
         config = {
             "config_type": "gemini",
@@ -145,10 +198,21 @@ class LumiGeminiImagenConfig:
             "temperature": temperature,
             "top_p": top_p,
         }
+        if io is not None:
+            return io.NodeOutput(config)
         return (config,)
 
+    def create_config(
+        self,
+        aspect_ratio: str,
+        image_size: str,
+        temperature: float,
+        top_p: float,
+    ) -> Tuple[Dict[str, Any]]:
+        return self.__class__.execute(aspect_ratio, image_size, temperature, top_p)
 
-class LumiOpenRouterImagenProvider:
+
+class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     """OpenRouter provider for imagen models."""
 
     @classmethod
@@ -176,7 +240,7 @@ class LumiOpenRouterImagenProvider:
 
     RETURN_TYPES = ("IMAGEN_PROVIDER",)
     RETURN_NAMES = ("provider",)
-    FUNCTION = "create_provider"
+    FUNCTION = "execute"
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
@@ -184,7 +248,36 @@ class LumiOpenRouterImagenProvider:
         "The API key must be set as an environment variable."
     )
 
-    def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
+    @classmethod
+    def define_schema(cls):
+        if io is None or IMAGEN_PROVIDER_TYPE is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        model_choices = [m["id"] for m in IMAGEN_MODELS_OPENROUTER]
+
+        return io.Schema(
+            node_id="LumiOpenRouterImagenProvider",
+            display_name="Lumi OpenRouter Imagen Provider",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                io.String.Input(
+                    "env_key",
+                    default="OPENROUTER_API_KEY",
+                    tooltip="Environment variable name containing the OpenRouter API key",
+                ),
+                io.Combo.Input(
+                    "model",
+                    options=model_choices,
+                    default=model_choices[0] if model_choices else "",
+                    tooltip="Select the imagen model to use",
+                ),
+            ],
+            outputs=[IMAGEN_PROVIDER_TYPE.Output(display_name="provider")],
+        )
+
+    @classmethod
+    def execute(cls, env_key: str, model: str):
         """Create OpenRouter imagen provider configuration."""
         # Get API key from environment
         api_key = os.getenv(env_key.strip())
@@ -207,11 +300,20 @@ class LumiOpenRouterImagenProvider:
             "max_resolution": model_info.get("max_resolution", "1K"),
             "env_key": env_key,
         }
+        if io is not None:
+            return io.NodeOutput(provider_config)
         return (provider_config,)
+
+    def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
+        return self.__class__.execute(env_key, model)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
         """Always execute to prevent caching of API keys."""
+        return float("nan")
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
         return float("nan")
 
     def __getstate__(self):
@@ -219,7 +321,7 @@ class LumiOpenRouterImagenProvider:
         return {"class_type": self.__class__.__name__, "version": "1.0"}
 
 
-class LumiGoogleImagenProvider:
+class LumiGoogleImagenProvider(_ComfyNodeBase):
     """Direct Google AI Studio provider for imagen models (faster than OpenRouter)."""
 
     @classmethod
@@ -247,7 +349,7 @@ class LumiGoogleImagenProvider:
 
     RETURN_TYPES = ("IMAGEN_PROVIDER",)
     RETURN_NAMES = ("provider",)
-    FUNCTION = "create_provider"
+    FUNCTION = "execute"
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
@@ -255,7 +357,36 @@ class LumiGoogleImagenProvider:
         "Faster than OpenRouter. API key must be set as an environment variable."
     )
 
-    def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
+    @classmethod
+    def define_schema(cls):
+        if io is None or IMAGEN_PROVIDER_TYPE is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        model_choices = [m["id"] for m in IMAGEN_MODELS_GOOGLE]
+
+        return io.Schema(
+            node_id="LumiGoogleImagenProvider",
+            display_name="Lumi Google Imagen Provider",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                io.String.Input(
+                    "env_key",
+                    default="GOOGLE_API_KEY",
+                    tooltip="Environment variable name containing the Google AI Studio API key",
+                ),
+                io.Combo.Input(
+                    "model",
+                    options=model_choices,
+                    default=model_choices[0] if model_choices else "",
+                    tooltip="Select the imagen model to use",
+                ),
+            ],
+            outputs=[IMAGEN_PROVIDER_TYPE.Output(display_name="provider")],
+        )
+
+    @classmethod
+    def execute(cls, env_key: str, model: str):
         """Create Google AI Studio imagen provider configuration."""
         # Get API key from environment
         api_key = os.getenv(env_key.strip())
@@ -278,11 +409,20 @@ class LumiGoogleImagenProvider:
             "max_resolution": model_info.get("max_resolution", "1K"),
             "env_key": env_key,
         }
+        if io is not None:
+            return io.NodeOutput(provider_config)
         return (provider_config,)
+
+    def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
+        return self.__class__.execute(env_key, model)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
         """Always execute to prevent caching of API keys."""
+        return float("nan")
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
         return float("nan")
 
     def __getstate__(self):
@@ -290,7 +430,7 @@ class LumiGoogleImagenProvider:
         return {"class_type": self.__class__.__name__, "version": "1.0"}
 
 
-class LumiLLMImagenProcessor:
+class LumiLLMImagenProcessor(_ComfyNodeBase):
     """Main imagen processor - generates images via OpenRouter API."""
 
     @classmethod
@@ -350,7 +490,7 @@ class LumiLLMImagenProcessor:
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("images", "text")
-    FUNCTION = "generate_images"
+    FUNCTION = "execute"
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
@@ -359,8 +499,65 @@ class LumiLLMImagenProcessor:
         "Outputs images as a batch tensor and optional text response."
     )
 
-    def generate_images(
-        self,
+    @classmethod
+    def define_schema(cls):
+        if (
+            io is None
+            or IMAGEN_PROVIDER_TYPE is None
+            or IMAGEN_CONFIG_TYPE is None
+            or LUMI_IMAGE_CHAIN_TYPE is None
+        ):
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        return io.Schema(
+            node_id="LumiLLMImagenProcessor",
+            display_name="Lumi LLM Imagen Processor",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                IMAGEN_PROVIDER_TYPE.Input("provider", tooltip="Imagen provider configuration"),
+                IMAGEN_CONFIG_TYPE.Input("config", tooltip="Imagen generation configuration"),
+                io.String.Input(
+                    "prompt",
+                    default="",
+                    multiline=True,
+                    tooltip="User prompt describing the image to generate",
+                ),
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    tooltip="Seed for generation (forces reprocessing)",
+                ),
+                io.Combo.Input(
+                    "error_mode",
+                    options=["fatal", "return_text", ""],
+                    default="fatal",
+                    tooltip="fatal: raise errors. return_text: return diagnostics in text output with a placeholder image.",
+                ),
+                io.String.Input(
+                    "instructions",
+                    default="",
+                    multiline=True,
+                    tooltip="System instructions for the model (optional)",
+                    optional=True,
+                ),
+                LUMI_IMAGE_CHAIN_TYPE.Input(
+                    "input_images",
+                    tooltip="Optional ordered image chain from Lumi Load Image nodes",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                io.Image.Output(display_name="images"),
+                io.String.Output(display_name="text"),
+            ],
+        )
+
+    @classmethod
+    def execute(
+        cls,
         provider: Dict[str, Any],
         config: Dict[str, Any],
         prompt: str,
@@ -368,8 +565,9 @@ class LumiLLMImagenProcessor:
         error_mode: str,
         instructions: str = "",
         input_images: Dict[str, Any] | None = None,
-    ) -> Tuple[torch.Tensor, str]:
+    ):
         """Generate images using the configured provider and settings."""
+        self = cls()
         error_mode = "return_text" if error_mode == "return_text" else "fatal"
 
         # Validate compatibility
@@ -384,7 +582,7 @@ class LumiLLMImagenProcessor:
         image_data_urls = self._extract_input_image_data_urls(input_images)
 
         if provider_type == "google_imagen":
-            return self._generate_google(
+            result = self._generate_google(
                 provider,
                 config,
                 prompt,
@@ -394,7 +592,7 @@ class LumiLLMImagenProcessor:
                 image_data_urls,
             )
         elif provider_type == "openrouter_imagen":
-            return self._generate_openrouter(
+            result = self._generate_openrouter(
                 provider,
                 config,
                 prompt,
@@ -405,6 +603,30 @@ class LumiLLMImagenProcessor:
             )
         else:
             raise ValueError(f"Unknown provider type: {provider_type}")
+
+        if io is not None:
+            return io.NodeOutput(*result)
+        return result
+
+    def generate_images(
+        self,
+        provider: Dict[str, Any],
+        config: Dict[str, Any],
+        prompt: str,
+        seed: int,
+        error_mode: str,
+        instructions: str = "",
+        input_images: Dict[str, Any] | None = None,
+    ) -> Tuple[torch.Tensor, str]:
+        return self.__class__.execute(
+            provider,
+            config,
+            prompt,
+            seed,
+            error_mode,
+            instructions=instructions,
+            input_images=input_images,
+        )
 
     def _generate_google(
         self,

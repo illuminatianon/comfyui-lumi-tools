@@ -70,6 +70,11 @@ if ComfyExtension is not None:
                 LumiTextInput,
                 LumiWrapText,
                 LumiShufflePrompt,
+                LumiOpenRouterProvider,
+                LumiGeminiImagenConfig,
+                LumiOpenRouterImagenProvider,
+                LumiGoogleImagenProvider,
+                LumiLLMPromptProcessor,
             ]
 
     async def comfy_entrypoint() -> ComfyExtension:
