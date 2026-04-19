@@ -16,6 +16,12 @@ from .nodes import (
     LumiWrapText,
 )
 
+try:
+    from comfy_api.latest import ComfyExtension, io
+except ImportError:
+    ComfyExtension = None
+    io = None
+
 NODE_CLASS_MAPPINGS = {
     "LumiNoiseToSeed": LumiNoiseToSeed,
     "LumiSeed": LumiSeed,
@@ -54,4 +60,22 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 WEB_DIRECTORY = "./js"
 
+if ComfyExtension is not None:
+
+    class LumiToolsV3Extension(ComfyExtension):
+        async def get_node_list(self) -> list[type[io.ComfyNode]]:
+            return [
+                LumiNoiseToSeed,
+                LumiSeed,
+                LumiTextInput,
+                LumiWrapText,
+                LumiShufflePrompt,
+            ]
+
+    async def comfy_entrypoint() -> ComfyExtension:
+        return LumiToolsV3Extension()
+
+
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
+if ComfyExtension is not None:
+    __all__.append("comfy_entrypoint")

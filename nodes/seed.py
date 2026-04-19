@@ -4,8 +4,16 @@ Lumi Seed node - outputs a random seed value.
 
 from __future__ import annotations
 
+try:
+    from comfy_api.latest import io
+except ImportError:
+    io = None
 
-class LumiSeed:
+
+_ComfyNodeBase = io.ComfyNode if io is not None else object
+
+
+class LumiSeed(_ComfyNodeBase):
     """
     Outputs a random seed value.
 
@@ -37,5 +45,31 @@ class LumiSeed:
     RETURN_NAMES = ("seed",)
     FUNCTION = "execute"
 
-    def execute(self, seed: int) -> tuple[int]:
+    @classmethod
+    def define_schema(cls):
+        if io is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        return io.Schema(
+            node_id="LumiSeed",
+            display_name="Lumi Seed",
+            category="Lumi/Utils",
+            description=cls.DESCRIPTION,
+            inputs=[
+                io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    tooltip="The seed value to output.",
+                    control_after_generate=True,
+                )
+            ],
+            outputs=[io.Int.Output(display_name="seed")],
+        )
+
+    @classmethod
+    def execute(cls, seed: int):
+        if io is not None:
+            return io.NodeOutput(seed)
         return (seed,)
