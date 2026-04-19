@@ -75,6 +75,11 @@ if ComfyExtension is not None:
                 LumiOpenRouterImagenProvider,
                 LumiGoogleImagenProvider,
                 LumiLLMPromptProcessor,
+                LumiLLMImagenProcessor,
+                LumiLoadImage,
+                LumiSaveImage,
+                LumiShowText,
+                LumiWildcardProcessor,
             ]
 
     async def comfy_entrypoint() -> ComfyExtension:
