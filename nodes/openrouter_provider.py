@@ -29,6 +29,7 @@ class LumiOpenRouterProvider(_ComfyNodeBase):
         # Ensure we have at least one model choice
         if not model_choices:
             model_choices = ["openai/gpt-4o"]
+        model_choices_tuple = tuple(model_choices)
 
         return {
             "required": {
@@ -40,7 +41,7 @@ class LumiOpenRouterProvider(_ComfyNodeBase):
                     },
                 ),
                 "model": (
-                    model_choices,
+                    model_choices_tuple,
                     {
                         "default": model_choices[0] if model_choices else "openai/gpt-4o",
                         "tooltip": "Select the OpenRouter model to use",

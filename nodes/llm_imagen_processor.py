@@ -90,17 +90,19 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
 
     @classmethod
     def INPUT_TYPES(cls):
+        aspect_ratio_choices = tuple(ASPECT_RATIOS)
+        resolution_choices = tuple(RESOLUTIONS)
         return {
             "required": {
                 "aspect_ratio": (
-                    ASPECT_RATIOS,
+                    aspect_ratio_choices,
                     {
                         "default": "16:9",
                         "tooltip": "Aspect ratio for generated images",
                     },
                 ),
                 "image_size": (
-                    RESOLUTIONS,
+                    resolution_choices,
                     {
                         "default": "2K",
                         "tooltip": "Image size tier (1K, 2K, 4K). Note: gemini-2.0-flash only supports 1K",
@@ -218,6 +220,7 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     @classmethod
     def INPUT_TYPES(cls):
         model_choices = [m["id"] for m in IMAGEN_MODELS_OPENROUTER]
+        model_choices_tuple = tuple(model_choices)
 
         return {
             "required": {
@@ -229,7 +232,7 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
                     },
                 ),
                 "model": (
-                    model_choices,
+                    model_choices_tuple,
                     {
                         "default": model_choices[0] if model_choices else "",
                         "tooltip": "Select the imagen model to use",
@@ -327,6 +330,7 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
     @classmethod
     def INPUT_TYPES(cls):
         model_choices = [m["id"] for m in IMAGEN_MODELS_GOOGLE]
+        model_choices_tuple = tuple(model_choices)
 
         return {
             "required": {
@@ -338,7 +342,7 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
                     },
                 ),
                 "model": (
-                    model_choices,
+                    model_choices_tuple,
                     {
                         "default": model_choices[0] if model_choices else "",
                         "tooltip": "Select the imagen model to use",
@@ -463,7 +467,7 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
                     },
                 ),
                 "error_mode": (
-                    ["fatal", "return_text", ""],
+                    ("fatal", "return_text", ""),
                     {
                         "default": "fatal",
                         "tooltip": "fatal: raise errors. return_text: return diagnostics in text output with a placeholder image.",
