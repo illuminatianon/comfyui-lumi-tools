@@ -81,6 +81,31 @@ class LumiOpenRouterProvider(_ComfyNodeBase):
         "This provider configuration is passed to the LLM Prompt Processor node."
     )
 
+    @staticmethod
+    def _create_provider_config(
+        env_key: str, model: str, max_tokens: int, top_p: float
+    ) -> Dict[str, Any]:
+        api_key = os.getenv(env_key.strip())
+        if not api_key:
+            raise ValueError(
+                f"API key not found in environment variable '{env_key}'. "
+                "Please set the environment variable with your OpenRouter API key."
+            )
+
+        model_info = model_cache.get_model_by_id(model, "openrouter")
+        if not model_info:
+            model_info = {"id": model, "name": f"Model: {model}"}
+
+        return {
+            "provider_type": "openrouter",
+            "api_key": api_key,
+            "model_id": model,
+            "model_info": model_info,
+            "max_tokens": max_tokens,
+            "top_p": top_p,
+            "env_key": env_key,
+        }
+
     @classmethod
     def define_schema(cls):
         if io is None or LLM_PROVIDER_TYPE is None:
@@ -131,31 +156,7 @@ class LumiOpenRouterProvider(_ComfyNodeBase):
     @classmethod
     def execute(cls, env_key: str, model: str, max_tokens: int, top_p: float):
         """Create OpenRouter provider configuration."""
-
-        # Get API key from environment
-        api_key = os.getenv(env_key.strip())
-        if not api_key:
-            raise ValueError(
-                f"API key not found in environment variable '{env_key}'. "
-                f"Please set the environment variable with your OpenRouter API key."
-            )
-
-        # Validate model exists in cache
-        model_info = model_cache.get_model_by_id(model, "openrouter")
-        if not model_info:
-            # If model not found in cache, still allow it (might be a new model)
-            model_info = {"id": model, "name": f"Model: {model}"}
-
-        # Create provider configuration
-        provider_config = {
-            "provider_type": "openrouter",
-            "api_key": api_key,  # This will not be serialized in workflow
-            "model_id": model,
-            "model_info": model_info,
-            "max_tokens": max_tokens,
-            "top_p": top_p,
-            "env_key": env_key,  # Store for reference but don't expose the actual key
-        }
+        provider_config = cls._create_provider_config(env_key, model, max_tokens, top_p)
 
         if io is not None:
             return io.NodeOutput(provider_config)
@@ -164,7 +165,7 @@ class LumiOpenRouterProvider(_ComfyNodeBase):
     def create_provider(
         self, env_key: str, model: str, max_tokens: int, top_p: float
     ) -> Tuple[Dict[str, Any]]:
-        return self.__class__.execute(env_key, model, max_tokens, top_p)
+        return (self.__class__._create_provider_config(env_key, model, max_tokens, top_p),)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

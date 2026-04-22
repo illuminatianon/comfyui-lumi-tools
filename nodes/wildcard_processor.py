@@ -26,8 +26,26 @@ except ImportError:
 
 class LumiWildcardProcessor(_ComfyNodeBase):
 
+    @staticmethod
+    def _process(mode: str, wildcard_text: str, populated_text: str, seed: int) -> str:
+        if mode == "populate":
+            return process_wildcards(text=wildcard_text, seed=seed)
+        return process_wildcards(text=populated_text, seed=seed)
+
+    @staticmethod
+    def _send_feedback(unique_id, result: str) -> None:
+        if HAS_SERVER and unique_id is not None:
+            PromptServer.instance.send_sync(
+                "lumi-node-feedback",
+                {
+                    "node_id": unique_id,
+                    "widget_name": "populated_text",
+                    "value": result,
+                },
+            )
+
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         wildcard_options = tuple(get_wildcard_list())
         return {
             "required": {
@@ -145,48 +163,28 @@ class LumiWildcardProcessor(_ComfyNodeBase):
         select_wildcard: str = "",
     ):
         del select_wildcard
-
-        if mode == "populate":
-            result = process_wildcards(text=wildcard_text, seed=seed)
-        else:
-            result = process_wildcards(text=populated_text, seed=seed)
+        result = cls._process(mode, wildcard_text, populated_text, seed)
 
         unique_id = None
         if io is not None and getattr(cls, "hidden", None) is not None:
             unique_id = getattr(cls.hidden, "unique_id", None)
 
-        if HAS_SERVER and unique_id is not None:
-            PromptServer.instance.send_sync(
-                "lumi-node-feedback",
-                {
-                    "node_id": unique_id,
-                    "widget_name": "populated_text",
-                    "value": result,
-                },
-            )
+        cls._send_feedback(unique_id, result)
 
         if io is not None:
             return io.NodeOutput(result)
         return (result,)
 
     def doit(self, **kwargs):
-        mode = kwargs.get("mode", "populate")
-        seed = kwargs["seed"]
-        if mode == "populate":
-            result = process_wildcards(text=kwargs["wildcard_text"], seed=seed)
-        else:
-            result = process_wildcards(text=kwargs["populated_text"], seed=seed)
+        result = self.__class__._process(
+            kwargs.get("mode", "populate"),
+            kwargs["wildcard_text"],
+            kwargs["populated_text"],
+            kwargs["seed"],
+        )
 
         unique_id = kwargs.get("unique_id")
-        if HAS_SERVER and unique_id is not None:
-            PromptServer.instance.send_sync(
-                "lumi-node-feedback",
-                {
-                    "node_id": unique_id,
-                    "widget_name": "populated_text",
-                    "value": result,
-                },
-            )
+        self.__class__._send_feedback(unique_id, result)
 
         return (result,)
 

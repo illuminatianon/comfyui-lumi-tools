@@ -141,6 +141,21 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
         "Configure aspect ratio, resolution, and generation parameters."
     )
 
+    @staticmethod
+    def _build_config(
+        aspect_ratio: str,
+        image_size: str,
+        temperature: float,
+        top_p: float,
+    ) -> Dict[str, Any]:
+        return {
+            "config_type": "gemini",
+            "aspect_ratio": aspect_ratio,
+            "image_size": image_size,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+
     @classmethod
     def define_schema(cls):
         if io is None or IMAGEN_CONFIG_TYPE is None:
@@ -193,13 +208,7 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
         top_p: float,
     ):
         """Create Gemini imagen configuration."""
-        config = {
-            "config_type": "gemini",
-            "aspect_ratio": aspect_ratio,
-            "image_size": image_size,
-            "temperature": temperature,
-            "top_p": top_p,
-        }
+        config = cls._build_config(aspect_ratio, image_size, temperature, top_p)
         if io is not None:
             return io.NodeOutput(config)
         return (config,)
@@ -211,7 +220,7 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
         temperature: float,
         top_p: float,
     ) -> Tuple[Dict[str, Any]]:
-        return self.__class__.execute(aspect_ratio, image_size, temperature, top_p)
+        return (self.__class__._build_config(aspect_ratio, image_size, temperature, top_p),)
 
 
 class LumiOpenRouterImagenProvider(_ComfyNodeBase):
@@ -251,6 +260,28 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
         "The API key must be set as an environment variable."
     )
 
+    @staticmethod
+    def _build_provider_config(env_key: str, model: str) -> Dict[str, Any]:
+        api_key = os.getenv(env_key.strip())
+        if not api_key:
+            raise ValueError(
+                f"API key not found in environment variable '{env_key}'. "
+                "Please set the environment variable with your OpenRouter API key."
+            )
+
+        model_info = next((m for m in IMAGEN_MODELS_OPENROUTER if m["id"] == model), None)
+        if not model_info:
+            model_info = {"id": model, "family": "gemini", "max_resolution": "1K"}
+
+        return {
+            "provider_type": "openrouter_imagen",
+            "api_key": api_key,
+            "model_id": model,
+            "model_family": model_info.get("family", "gemini"),
+            "max_resolution": model_info.get("max_resolution", "1K"),
+            "env_key": env_key,
+        }
+
     @classmethod
     def define_schema(cls):
         if io is None or IMAGEN_PROVIDER_TYPE is None:
@@ -282,33 +313,13 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     @classmethod
     def execute(cls, env_key: str, model: str):
         """Create OpenRouter imagen provider configuration."""
-        # Get API key from environment
-        api_key = os.getenv(env_key.strip())
-        if not api_key:
-            raise ValueError(
-                f"API key not found in environment variable '{env_key}'. "
-                f"Please set the environment variable with your OpenRouter API key."
-            )
-
-        # Find model info
-        model_info = next((m for m in IMAGEN_MODELS_OPENROUTER if m["id"] == model), None)
-        if not model_info:
-            model_info = {"id": model, "family": "gemini", "max_resolution": "1K"}
-
-        provider_config = {
-            "provider_type": "openrouter_imagen",
-            "api_key": api_key,
-            "model_id": model,
-            "model_family": model_info.get("family", "gemini"),
-            "max_resolution": model_info.get("max_resolution", "1K"),
-            "env_key": env_key,
-        }
+        provider_config = cls._build_provider_config(env_key, model)
         if io is not None:
             return io.NodeOutput(provider_config)
         return (provider_config,)
 
     def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
-        return self.__class__.execute(env_key, model)
+        return (self.__class__._build_provider_config(env_key, model),)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -361,6 +372,28 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
         "Faster than OpenRouter. API key must be set as an environment variable."
     )
 
+    @staticmethod
+    def _build_provider_config(env_key: str, model: str) -> Dict[str, Any]:
+        api_key = os.getenv(env_key.strip())
+        if not api_key:
+            raise ValueError(
+                f"API key not found in environment variable '{env_key}'. "
+                "Please set the environment variable with your Google AI Studio API key."
+            )
+
+        model_info = next((m for m in IMAGEN_MODELS_GOOGLE if m["id"] == model), None)
+        if not model_info:
+            model_info = {"id": model, "family": "gemini", "max_resolution": "1K"}
+
+        return {
+            "provider_type": "google_imagen",
+            "api_key": api_key,
+            "model_id": model,
+            "model_family": model_info.get("family", "gemini"),
+            "max_resolution": model_info.get("max_resolution", "1K"),
+            "env_key": env_key,
+        }
+
     @classmethod
     def define_schema(cls):
         if io is None or IMAGEN_PROVIDER_TYPE is None:
@@ -392,33 +425,13 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
     @classmethod
     def execute(cls, env_key: str, model: str):
         """Create Google AI Studio imagen provider configuration."""
-        # Get API key from environment
-        api_key = os.getenv(env_key.strip())
-        if not api_key:
-            raise ValueError(
-                f"API key not found in environment variable '{env_key}'. "
-                f"Please set the environment variable with your Google AI Studio API key."
-            )
-
-        # Find model info
-        model_info = next((m for m in IMAGEN_MODELS_GOOGLE if m["id"] == model), None)
-        if not model_info:
-            model_info = {"id": model, "family": "gemini", "max_resolution": "1K"}
-
-        provider_config = {
-            "provider_type": "google_imagen",
-            "api_key": api_key,
-            "model_id": model,
-            "model_family": model_info.get("family", "gemini"),
-            "max_resolution": model_info.get("max_resolution", "1K"),
-            "env_key": env_key,
-        }
+        provider_config = cls._build_provider_config(env_key, model)
         if io is not None:
             return io.NodeOutput(provider_config)
         return (provider_config,)
 
     def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
-        return self.__class__.execute(env_key, model)
+        return (self.__class__._build_provider_config(env_key, model),)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -504,6 +517,53 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
     )
 
     @classmethod
+    def _generate_images_impl(
+        cls,
+        provider: Dict[str, Any],
+        config: Dict[str, Any],
+        prompt: str,
+        seed: int,
+        error_mode: str,
+        instructions: str = "",
+        input_images: Dict[str, Any] | None = None,
+    ) -> Tuple[torch.Tensor, str]:
+        processor = cls()
+        normalized_error_mode = "return_text" if error_mode == "return_text" else "fatal"
+
+        if provider.get("model_family") != config.get("config_type"):
+            raise ValueError(
+                f"Provider model family '{provider.get('model_family')}' "
+                f"is not compatible with config type '{config.get('config_type')}'"
+            )
+
+        provider_type = provider.get("provider_type", "")
+        image_data_urls = processor._extract_input_image_data_urls(input_images)
+
+        if provider_type == "google_imagen":
+            return processor._generate_google(
+                provider,
+                config,
+                prompt,
+                seed,
+                normalized_error_mode,
+                instructions,
+                image_data_urls,
+            )
+
+        if provider_type == "openrouter_imagen":
+            return processor._generate_openrouter(
+                provider,
+                config,
+                prompt,
+                seed,
+                normalized_error_mode,
+                instructions,
+                image_data_urls,
+            )
+
+        raise ValueError(f"Unknown provider type: {provider_type}")
+
+    @classmethod
     def define_schema(cls):
         if (
             io is None
@@ -571,42 +631,15 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
         input_images: Dict[str, Any] | None = None,
     ):
         """Generate images using the configured provider and settings."""
-        self = cls()
-        error_mode = "return_text" if error_mode == "return_text" else "fatal"
-
-        # Validate compatibility
-        if provider.get("model_family") != config.get("config_type"):
-            raise ValueError(
-                f"Provider model family '{provider.get('model_family')}' "
-                f"is not compatible with config type '{config.get('config_type')}'"
-            )
-
-        # Route to appropriate provider
-        provider_type = provider.get("provider_type", "")
-        image_data_urls = self._extract_input_image_data_urls(input_images)
-
-        if provider_type == "google_imagen":
-            result = self._generate_google(
-                provider,
-                config,
-                prompt,
-                seed,
-                error_mode,
-                instructions,
-                image_data_urls,
-            )
-        elif provider_type == "openrouter_imagen":
-            result = self._generate_openrouter(
-                provider,
-                config,
-                prompt,
-                seed,
-                error_mode,
-                instructions,
-                image_data_urls,
-            )
-        else:
-            raise ValueError(f"Unknown provider type: {provider_type}")
+        result = cls._generate_images_impl(
+            provider,
+            config,
+            prompt,
+            seed,
+            error_mode,
+            instructions=instructions,
+            input_images=input_images,
+        )
 
         if io is not None:
             return io.NodeOutput(*result)
@@ -622,7 +655,7 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
         instructions: str = "",
         input_images: Dict[str, Any] | None = None,
     ) -> Tuple[torch.Tensor, str]:
-        return self.__class__.execute(
+        return self.__class__._generate_images_impl(
             provider,
             config,
             prompt,

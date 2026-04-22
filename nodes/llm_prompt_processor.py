@@ -88,6 +88,62 @@ class LumiLLMPromptProcessor(_ComfyNodeBase):
         "instructions and prompt to generate text using the configured LLM."
     )
 
+    @staticmethod
+    def _process_prompt_impl(
+        provider: Dict[str, Any], instructions: str, prompt: str, seed: int
+    ) -> str:
+        if not isinstance(provider, dict):
+            raise ValueError("Invalid provider configuration: must be a dictionary")
+
+        provider_type = provider.get("provider_type")
+        if not provider_type:
+            raise ValueError("Provider configuration missing 'provider_type'")
+
+        api_key = provider.get("api_key")
+        model_id = provider.get("model_id")
+        max_tokens = provider.get("max_tokens", 1000)
+        top_p = provider.get("top_p", 1.0)
+
+        if not api_key:
+            env_key = provider.get("env_key", "OPENROUTER_API_KEY")
+            raise ValueError(
+                f"API key not available. Please ensure the environment variable "
+                f"'{env_key}' is set with your API key."
+            )
+
+        if not model_id:
+            raise ValueError("Model ID not specified in provider configuration")
+
+        llm_provider = create_provider(
+            provider_type=provider_type,
+            api_key=api_key,
+            model_id=model_id,
+            max_tokens=max_tokens,
+            top_p=top_p,
+        )
+
+        result = llm_provider.generate(
+            instructions=instructions,
+            prompt=prompt,
+            seed=seed if seed > 0 else None,
+        )
+
+        if result is None:
+            raise RuntimeError(
+                "LLM provider returned no text content (None). "
+                "This usually means the model response did not include a message body."
+            )
+
+        if not isinstance(result, str):
+            raise RuntimeError(
+                f"LLM provider returned unsupported output type: {type(result).__name__}"
+            )
+
+        model_info = provider.get("model_info", {})
+        model_name = model_info.get("name", model_id)
+        logging.info(f"LLM generation completed using {model_name}")
+        return result
+
     @classmethod
     def define_schema(cls):
         if io is None or LLM_PROVIDER_TYPE is None:
@@ -131,59 +187,7 @@ class LumiLLMPromptProcessor(_ComfyNodeBase):
         """Process the prompt using the configured LLM provider."""
 
         try:
-            # Validate provider configuration
-            if not isinstance(provider, dict):
-                raise ValueError("Invalid provider configuration: must be a dictionary")
-
-            provider_type = provider.get("provider_type")
-            if not provider_type:
-                raise ValueError("Provider configuration missing 'provider_type'")
-
-            # Extract provider parameters
-            api_key = provider.get("api_key")
-            model_id = provider.get("model_id")
-            max_tokens = provider.get("max_tokens", 1000)
-            top_p = provider.get("top_p", 1.0)
-
-            if not api_key:
-                env_key = provider.get("env_key", "OPENROUTER_API_KEY")
-                raise ValueError(
-                    f"API key not available. Please ensure the environment variable "
-                    f"'{env_key}' is set with your API key."
-                )
-
-            if not model_id:
-                raise ValueError("Model ID not specified in provider configuration")
-
-            # Create provider instance
-            llm_provider = create_provider(
-                provider_type=provider_type,
-                api_key=api_key,
-                model_id=model_id,
-                max_tokens=max_tokens,
-                top_p=top_p,
-            )
-
-            # Generate text
-            result = llm_provider.generate(
-                instructions=instructions, prompt=prompt, seed=seed if seed > 0 else None
-            )
-
-            if result is None:
-                raise RuntimeError(
-                    "LLM provider returned no text content (None). "
-                    "This usually means the model response did not include a message body."
-                )
-
-            if not isinstance(result, str):
-                raise RuntimeError(
-                    f"LLM provider returned unsupported output type: {type(result).__name__}"
-                )
-
-            # Log successful generation (without sensitive data)
-            model_info = provider.get("model_info", {})
-            model_name = model_info.get("name", model_id)
-            logging.info(f"LLM generation completed using {model_name}")
+            result = cls._process_prompt_impl(provider, instructions, prompt, seed)
 
             if io is not None:
                 return io.NodeOutput(result)
@@ -200,7 +204,7 @@ class LumiLLMPromptProcessor(_ComfyNodeBase):
     def process_prompt(
         self, provider: Dict[str, Any], instructions: str, prompt: str, seed: int
     ) -> Tuple[str]:
-        return self.__class__.execute(provider, instructions, prompt, seed)
+        return (self.__class__._process_prompt_impl(provider, instructions, prompt, seed),)
 
     @classmethod
     def IS_CHANGED(cls, provider, instructions, prompt, seed):
