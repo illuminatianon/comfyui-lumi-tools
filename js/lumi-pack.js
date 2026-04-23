@@ -457,7 +457,7 @@ function setupLLMImagenConfigNode(nodeType, nodeData) {
                     this,
                     "combo",
                     "size_preset",
-                    previousValues.size_preset ?? "auto",
+                    previousValues.size_preset ?? "1024x1024",
                     undefined,
                     { values: OPENAI_IMAGE_SIZES }
                 );
