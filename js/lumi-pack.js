@@ -9,6 +9,19 @@ const MAX_TIMER_MINUTES = 240;
 
 const IMAGEN_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
 const IMAGEN_RESOLUTIONS = ["1K", "2K", "4K"];
+const OPENAI_IMAGE_SIZES = [
+    "auto",
+    "1024x1024",
+    "1536x1024",
+    "1024x1536",
+    "2048x2048",
+    "2048x1152",
+    "3840x2160",
+    "2160x3840",
+];
+const OPENAI_QUALITIES = ["auto", "low", "medium", "high"];
+const OPENAI_OUTPUT_FORMATS = ["png", "jpeg", "webp"];
+const OPENAI_BACKGROUNDS = ["auto", "opaque"];
 const IMAGEN_PROVIDER_OPTIONS = {
     google: {
         envKey: "GOOGLE_API_KEY",
@@ -27,9 +40,24 @@ const IMAGEN_PROVIDER_OPTIONS = {
             "google/gemini-2.5-flash-image",
         ],
     },
+    openai: {
+        envKey: "OPENAI_API_KEY",
+        models: ["gpt-image-2", "gpt-image-1"],
+    },
 };
 
-const IMAGEN_CONFIG_WIDGETS = ["aspect_ratio", "image_size", "temperature", "top_p"];
+const IMAGEN_CONFIG_WIDGETS = [
+    "aspect_ratio",
+    "image_size",
+    "temperature",
+    "top_p",
+    "size_mode",
+    "size_preset",
+    "size_custom",
+    "quality",
+    "output_format",
+    "background",
+];
 const IMAGEN_PROVIDER_WIDGETS = ["env_key", "model"];
 
 const timerState = {
@@ -387,7 +415,9 @@ function setupLLMImagenConfigNode(nodeType, nodeData) {
 
             removeWidgets(this, IMAGEN_CONFIG_WIDGETS);
 
-            if (configTypeWidget?.value === "gemini") {
+            const configType = configTypeWidget?.value ?? "gemini";
+
+            if (configType === "gemini") {
                 addSerializedWidget(
                     this,
                     "combo",
@@ -414,6 +444,55 @@ function setupLLMImagenConfigNode(nodeType, nodeData) {
                     max: 1,
                     step: 0.01,
                 });
+            } else if (configType === "openai") {
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "size_mode",
+                    previousValues.size_mode ?? "preset",
+                    undefined,
+                    { values: ["preset", "custom"] }
+                );
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "size_preset",
+                    previousValues.size_preset ?? "auto",
+                    undefined,
+                    { values: OPENAI_IMAGE_SIZES }
+                );
+                addSerializedWidget(
+                    this,
+                    "text",
+                    "size_custom",
+                    previousValues.size_custom ?? "1024x1024",
+                    undefined,
+                    {}
+                );
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "quality",
+                    previousValues.quality ?? "auto",
+                    undefined,
+                    { values: OPENAI_QUALITIES }
+                );
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "output_format",
+                    previousValues.output_format ?? "png",
+                    undefined,
+                    { values: OPENAI_OUTPUT_FORMATS }
+                );
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "background",
+                    previousValues.background ?? "auto",
+                    undefined,
+                    { values: OPENAI_BACKGROUNDS }
+                );
             }
 
             refreshNodeSize(this);

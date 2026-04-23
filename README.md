@@ -65,21 +65,25 @@ Combined configuration node for image generation models. Selects the config fami
 
 For Gemini configs, it sets aspect ratio (default: 16:9), image size (default: 2K), temperature, and top-p.
 
+For OpenAI configs, it sets output size, quality, output format, and background. Size can be selected from common presets or entered as a custom `WIDTHxHEIGHT` value. Custom sizes are validated against OpenAI's `gpt-image-2` rules: max edge 3840px, both edges multiples of 16px, max 3:1 aspect ratio, and 655,360 to 8,294,400 total pixels.
+
 #### Lumi LLM Imagen Provider
 
-Combined provider node for image generation APIs. Select `google` or `openrouter` and the node dynamically shows the matching API key environment variable and model list.
+Combined provider node for image generation APIs. Select `google`, `openrouter`, or `openai` and the node dynamically shows the matching API key environment variable and model list.
 
-Google AI Studio uses `GOOGLE_API_KEY` and is much faster than OpenRouter (~4x). OpenRouter uses `OPENROUTER_API_KEY`.
+Google AI Studio uses `GOOGLE_API_KEY` and is much faster than OpenRouter (~4x). OpenRouter uses `OPENROUTER_API_KEY`. OpenAI uses `OPENAI_API_KEY`.
 
 Available models:
 - `gemini-3-pro-image-preview` (default, supports up to 4K)
 - `gemini-3.1-flash-image-preview` (supports up to 4K)
 - `gemini-2.5-flash-image` (1K only)
 - `google/gemini-2.0-flash-preview-image-generation` (OpenRouter only, 1K only)
+- `gpt-image-2` (OpenAI default, supports custom valid sizes)
+- `gpt-image-1` (OpenAI, supports `1024x1024`, `1536x1024`, and `1024x1536`)
 
 #### Lumi LLM Imagen Processor
 
-Generates images using configured Gemini imagen providers. Connect `Lumi LLM Imagen Provider` and `Lumi LLM Imagen Config` to this node.
+Generates images using configured imagen providers. Connect `Lumi LLM Imagen Provider` and `Lumi LLM Imagen Config` to this node. For OpenAI, the processor uses the Image Create endpoint when no `input_images` chain is connected and the Image Edit endpoint when an input image chain is provided.
 
 Deprecated compatibility nodes remain registered for older workflows:
 - `Lumi Gemini Imagen Config`
