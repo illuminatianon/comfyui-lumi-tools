@@ -2,8 +2,8 @@
 LLM Imagen Processor nodes for image generation via OpenRouter.
 
 Contains:
-- LumiGeminiImagenConfig: Configuration for Gemini imagen models
-- LumiOpenRouterImagenProvider: Provider for OpenRouter imagen API
+- LumiLLMImagenConfig: Combined configuration for imagen models
+- LumiLLMImagenProvider: Combined provider for imagen APIs
 - LumiLLMImagenProcessor: Main processor that generates images
 """
 
@@ -85,8 +85,38 @@ ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"
 RESOLUTIONS = ["1K", "2K", "4K"]
 
 
+class ContainsAnyDict(dict):
+    """Dictionary that lets dynamic frontend-created inputs pass validation."""
+
+    def __contains__(self, key):
+        return True
+
+
+CONFIG_TYPES = ("gemini",)
+PROVIDER_TYPES = ("google", "openrouter")
+
+
+def _imagen_config_input_defaults() -> dict[str, Any]:
+    return {
+        "aspect_ratio": "16:9",
+        "image_size": "2K",
+        "temperature": 1.0,
+        "top_p": 1.0,
+    }
+
+
+def _openrouter_default_model() -> str:
+    return IMAGEN_MODELS_OPENROUTER[0]["id"] if IMAGEN_MODELS_OPENROUTER else ""
+
+
+def _google_default_model() -> str:
+    return IMAGEN_MODELS_GOOGLE[0]["id"] if IMAGEN_MODELS_GOOGLE else ""
+
+
 class LumiGeminiImagenConfig(_ComfyNodeBase):
     """Configuration node for Gemini imagen models."""
+
+    DEPRECATED = True
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -137,8 +167,8 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
-        "Creates configuration for Gemini imagen models. "
-        "Configure aspect ratio, resolution, and generation parameters."
+        "Deprecated: use Lumi LLM Imagen Config instead. "
+        "Creates configuration for Gemini imagen models."
     )
 
     @staticmethod
@@ -163,7 +193,7 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
 
         return io.Schema(
             node_id="LumiGeminiImagenConfig",
-            display_name="Lumi Gemini Imagen Config",
+            display_name="Lumi Gemini Imagen Config (Deprecated)",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
@@ -223,8 +253,91 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
         return (self.__class__._build_config(aspect_ratio, image_size, temperature, top_p),)
 
 
+class LumiLLMImagenConfig(_ComfyNodeBase):
+    """Combined configuration node for imagen models."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "config_type": (
+                    CONFIG_TYPES,
+                    {
+                        "default": "gemini",
+                        "tooltip": "Imagen config family to create",
+                    },
+                ),
+            },
+            "optional": ContainsAnyDict(),
+        }
+
+    RETURN_TYPES = ("IMAGEN_CONFIG",)
+    RETURN_NAMES = ("config",)
+    FUNCTION = "execute"
+    CATEGORY = "Lumi/LLM"
+
+    DESCRIPTION = (
+        "Creates an imagen generation configuration. "
+        "Dynamic inputs expose the options supported by the selected model family."
+    )
+
+    @classmethod
+    def define_schema(cls):
+        if io is None or IMAGEN_CONFIG_TYPE is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        return io.Schema(
+            node_id="LumiLLMImagenConfig",
+            display_name="Lumi LLM Imagen Config",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                io.Combo.Input(
+                    "config_type",
+                    options=CONFIG_TYPES,
+                    default="gemini",
+                    tooltip="Imagen config family to create",
+                ),
+            ],
+            outputs=[IMAGEN_CONFIG_TYPE.Output(display_name="config")],
+        )
+
+    @classmethod
+    def execute(cls, config_type: str = "gemini", **kwargs):
+        """Create an imagen configuration from dynamic inputs."""
+        if config_type != "gemini":
+            raise ValueError(f"Unknown imagen config type: {config_type}")
+
+        defaults = _imagen_config_input_defaults()
+        config = LumiGeminiImagenConfig._build_config(
+            str(kwargs.get("aspect_ratio", defaults["aspect_ratio"])),
+            str(kwargs.get("image_size", defaults["image_size"])),
+            float(kwargs.get("temperature", defaults["temperature"])),
+            float(kwargs.get("top_p", defaults["top_p"])),
+        )
+        if io is not None:
+            return io.NodeOutput(config)
+        return (config,)
+
+    def create_config(self, config_type: str = "gemini", **kwargs) -> Tuple[Dict[str, Any]]:
+        if config_type != "gemini":
+            raise ValueError(f"Unknown imagen config type: {config_type}")
+
+        defaults = _imagen_config_input_defaults()
+        return (
+            LumiGeminiImagenConfig._build_config(
+                str(kwargs.get("aspect_ratio", defaults["aspect_ratio"])),
+                str(kwargs.get("image_size", defaults["image_size"])),
+                float(kwargs.get("temperature", defaults["temperature"])),
+                float(kwargs.get("top_p", defaults["top_p"])),
+            ),
+        )
+
+
 class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     """OpenRouter provider for imagen models."""
+
+    DEPRECATED = True
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -256,6 +369,7 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
+        "Deprecated: use Lumi LLM Imagen Provider instead. "
         "Creates an OpenRouter provider for imagen models. "
         "The API key must be set as an environment variable."
     )
@@ -291,7 +405,7 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
 
         return io.Schema(
             node_id="LumiOpenRouterImagenProvider",
-            display_name="Lumi OpenRouter Imagen Provider",
+            display_name="Lumi OpenRouter Imagen Provider (Deprecated)",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
@@ -338,6 +452,8 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
 class LumiGoogleImagenProvider(_ComfyNodeBase):
     """Direct Google AI Studio provider for imagen models (faster than OpenRouter)."""
 
+    DEPRECATED = True
+
     @classmethod
     def INPUT_TYPES(cls):
         model_choices = [m["id"] for m in IMAGEN_MODELS_GOOGLE]
@@ -368,6 +484,7 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
+        "Deprecated: use Lumi LLM Imagen Provider instead. "
         "Creates a direct Google AI Studio provider for imagen models. "
         "Faster than OpenRouter. API key must be set as an environment variable."
     )
@@ -403,7 +520,7 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
 
         return io.Schema(
             node_id="LumiGoogleImagenProvider",
-            display_name="Lumi Google Imagen Provider",
+            display_name="Lumi Google Imagen Provider (Deprecated)",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
@@ -432,6 +549,106 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
 
     def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
         return (self.__class__._build_provider_config(env_key, model),)
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        """Always execute to prevent caching of API keys."""
+        return float("nan")
+
+    @classmethod
+    def fingerprint_inputs(cls, **kwargs):
+        return float("nan")
+
+    def __getstate__(self):
+        """Exclude sensitive data from workflow files."""
+        return {"class_type": self.__class__.__name__, "version": "1.0"}
+
+
+class LumiLLMImagenProvider(_ComfyNodeBase):
+    """Combined provider node for imagen APIs."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "provider_type": (
+                    PROVIDER_TYPES,
+                    {
+                        "default": "google",
+                        "tooltip": "Imagen API provider to use",
+                    },
+                ),
+            },
+            "optional": ContainsAnyDict(),
+        }
+
+    RETURN_TYPES = ("IMAGEN_PROVIDER",)
+    RETURN_NAMES = ("provider",)
+    FUNCTION = "execute"
+    CATEGORY = "Lumi/LLM"
+
+    DESCRIPTION = (
+        "Creates an imagen provider configuration. "
+        "Dynamic inputs expose the API key environment variable and model list for the selected provider."
+    )
+
+    @classmethod
+    def define_schema(cls):
+        if io is None or IMAGEN_PROVIDER_TYPE is None:
+            raise RuntimeError("ComfyUI V3 API is not available")
+
+        return io.Schema(
+            node_id="LumiLLMImagenProvider",
+            display_name="Lumi LLM Imagen Provider",
+            category="Lumi/LLM",
+            description=cls.DESCRIPTION,
+            inputs=[
+                io.Combo.Input(
+                    "provider_type",
+                    options=PROVIDER_TYPES,
+                    default="google",
+                    tooltip="Imagen API provider to use",
+                ),
+            ],
+            outputs=[IMAGEN_PROVIDER_TYPE.Output(display_name="provider")],
+        )
+
+    @classmethod
+    def execute(cls, provider_type: str = "google", **kwargs):
+        """Create an imagen provider configuration from dynamic inputs."""
+        if provider_type == "google":
+            provider_config = LumiGoogleImagenProvider._build_provider_config(
+                str(kwargs.get("env_key", "GOOGLE_API_KEY")),
+                str(kwargs.get("model", _google_default_model())),
+            )
+        elif provider_type == "openrouter":
+            provider_config = LumiOpenRouterImagenProvider._build_provider_config(
+                str(kwargs.get("env_key", "OPENROUTER_API_KEY")),
+                str(kwargs.get("model", _openrouter_default_model())),
+            )
+        else:
+            raise ValueError(f"Unknown imagen provider type: {provider_type}")
+
+        if io is not None:
+            return io.NodeOutput(provider_config)
+        return (provider_config,)
+
+    def create_provider(self, provider_type: str = "google", **kwargs) -> Tuple[Dict[str, Any]]:
+        if provider_type == "google":
+            return (
+                LumiGoogleImagenProvider._build_provider_config(
+                    str(kwargs.get("env_key", "GOOGLE_API_KEY")),
+                    str(kwargs.get("model", _google_default_model())),
+                ),
+            )
+        if provider_type == "openrouter":
+            return (
+                LumiOpenRouterImagenProvider._build_provider_config(
+                    str(kwargs.get("env_key", "OPENROUTER_API_KEY")),
+                    str(kwargs.get("model", _openrouter_default_model())),
+                ),
+            )
+        raise ValueError(f"Unknown imagen provider type: {provider_type}")
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

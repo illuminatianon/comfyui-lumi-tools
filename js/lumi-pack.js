@@ -7,6 +7,31 @@ const DEFAULT_TIMER_MINUTES = 10;
 const MIN_TIMER_MINUTES = 1;
 const MAX_TIMER_MINUTES = 240;
 
+const IMAGEN_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
+const IMAGEN_RESOLUTIONS = ["1K", "2K", "4K"];
+const IMAGEN_PROVIDER_OPTIONS = {
+    google: {
+        envKey: "GOOGLE_API_KEY",
+        models: [
+            "gemini-3-pro-image-preview",
+            "gemini-3.1-flash-image-preview",
+            "gemini-2.5-flash-image",
+        ],
+    },
+    openrouter: {
+        envKey: "OPENROUTER_API_KEY",
+        models: [
+            "google/gemini-2.0-flash-preview-image-generation",
+            "google/gemini-3-pro-image-preview",
+            "google/gemini-3.1-flash-image-preview",
+            "google/gemini-2.5-flash-image",
+        ],
+    },
+};
+
+const IMAGEN_CONFIG_WIDGETS = ["aspect_ratio", "image_size", "temperature", "top_p"];
+const IMAGEN_PROVIDER_WIDGETS = ["env_key", "model"];
+
 const timerState = {
     enabled: false,
     maxMinutes: DEFAULT_TIMER_MINUTES,
@@ -302,11 +327,164 @@ const extension = {
             setupWildcardProcessorNode(nodeType, nodeData);
         } else if (nodeData.name === "LumiWildcardEncode") {
             setupWildcardEncodeNode(nodeType, nodeData);
+        } else if (nodeData.name === "LumiLLMImagenConfig") {
+            setupLLMImagenConfigNode(nodeType, nodeData);
+        } else if (nodeData.name === "LumiLLMImagenProvider") {
+            setupLLMImagenProviderNode(nodeType, nodeData);
         }
     }
 };
 
 app.registerExtension(extension);
+
+function widgetValue(node, name, fallbackValue) {
+    const widget = node.widgets?.find((w) => w.name === name);
+    return widget?.value ?? fallbackValue;
+}
+
+function removeWidgets(node, names) {
+    if (!node.widgets) {
+        return;
+    }
+
+    node.widgets = node.widgets.filter((widget) => !names.includes(widget.name));
+}
+
+function addSerializedWidget(node, type, name, value, callback, options = {}) {
+    const widget = node.addWidget(type, name, value, callback, options);
+    widget.serialize = true;
+    return widget;
+}
+
+function refreshNodeSize(node) {
+    if (node.computeSize && node.setSize) {
+        node.setSize(node.computeSize());
+    }
+    app.graph?.setDirtyCanvas(true, true);
+}
+
+function setupLLMImagenConfigNode(nodeType, nodeData) {
+    const onNodeCreated = nodeType.prototype.onNodeCreated;
+    const onConfigure = nodeType.prototype.onConfigure;
+
+    nodeType.prototype.onConfigure = function () {
+        if (onConfigure) {
+            onConfigure.apply(this, arguments);
+        }
+        this.updateLumiImagenConfigWidgets?.();
+    };
+
+    nodeType.prototype.onNodeCreated = function () {
+        if (onNodeCreated) {
+            onNodeCreated.apply(this, arguments);
+        }
+
+        const configTypeWidget = this.widgets.find((w) => w.name === "config_type");
+        const updateWidgets = () => {
+            const previousValues = Object.fromEntries(
+                IMAGEN_CONFIG_WIDGETS.map((name) => [name, widgetValue(this, name)])
+            );
+
+            removeWidgets(this, IMAGEN_CONFIG_WIDGETS);
+
+            if (configTypeWidget?.value === "gemini") {
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "aspect_ratio",
+                    previousValues.aspect_ratio ?? "16:9",
+                    undefined,
+                    { values: IMAGEN_ASPECT_RATIOS }
+                );
+                addSerializedWidget(
+                    this,
+                    "combo",
+                    "image_size",
+                    previousValues.image_size ?? "2K",
+                    undefined,
+                    { values: IMAGEN_RESOLUTIONS }
+                );
+                addSerializedWidget(this, "number", "temperature", previousValues.temperature ?? 1.0, undefined, {
+                    min: 0,
+                    max: 2,
+                    step: 0.05,
+                });
+                addSerializedWidget(this, "number", "top_p", previousValues.top_p ?? 1.0, undefined, {
+                    min: 0,
+                    max: 1,
+                    step: 0.01,
+                });
+            }
+
+            refreshNodeSize(this);
+        };
+
+        if (configTypeWidget) {
+            const originalCallback = configTypeWidget.callback;
+            configTypeWidget.callback = function (value) {
+                if (originalCallback) {
+                    originalCallback.apply(this, arguments);
+                }
+                updateWidgets(value);
+            };
+        }
+
+        this.updateLumiImagenConfigWidgets = updateWidgets;
+        updateWidgets();
+    };
+}
+
+function setupLLMImagenProviderNode(nodeType, nodeData) {
+    const onNodeCreated = nodeType.prototype.onNodeCreated;
+    const onConfigure = nodeType.prototype.onConfigure;
+
+    nodeType.prototype.onConfigure = function () {
+        if (onConfigure) {
+            onConfigure.apply(this, arguments);
+        }
+        this.updateLumiImagenProviderWidgets?.();
+    };
+
+    nodeType.prototype.onNodeCreated = function () {
+        if (onNodeCreated) {
+            onNodeCreated.apply(this, arguments);
+        }
+
+        const providerTypeWidget = this.widgets.find((w) => w.name === "provider_type");
+        const updateWidgets = () => {
+            const providerType = providerTypeWidget?.value ?? "google";
+            const providerOptions = IMAGEN_PROVIDER_OPTIONS[providerType] ?? IMAGEN_PROVIDER_OPTIONS.google;
+            const existingEnvKey = widgetValue(this, "env_key", providerOptions.envKey);
+            const defaultEnvKeys = Object.values(IMAGEN_PROVIDER_OPTIONS).map((options) => options.envKey);
+            const envKey = defaultEnvKeys.includes(existingEnvKey) ? providerOptions.envKey : existingEnvKey;
+            const previousModel = widgetValue(this, "model", providerOptions.models[0]);
+            const model = providerOptions.models.includes(previousModel)
+                ? previousModel
+                : providerOptions.models[0];
+
+            removeWidgets(this, IMAGEN_PROVIDER_WIDGETS);
+            addSerializedWidget(this, "text", "env_key", envKey, undefined, {});
+            addSerializedWidget(this, "combo", "model", model, undefined, {
+                values: providerOptions.models,
+            });
+
+            refreshNodeSize(this);
+        };
+
+        if (providerTypeWidget) {
+            const originalCallback = providerTypeWidget.callback;
+            providerTypeWidget.callback = function (value) {
+                if (originalCallback) {
+                    originalCallback.apply(this, arguments);
+                }
+                updateWidgets(value);
+            };
+        }
+
+        this.updateLumiImagenProviderWidgets = updateWidgets;
+        updateWidgets();
+    };
+}
 
 function setupWildcardProcessorNode(nodeType, nodeData) {
     const onNodeCreated = nodeType.prototype.onNodeCreated;

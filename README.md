@@ -59,26 +59,34 @@ Processes prompts using LLM inference via OpenRouter. Useful for prompt enhancem
 
 ### Image Generation Nodes
 
-#### Lumi Gemini Imagen Config
+#### Lumi LLM Imagen Config
 
-Configuration node for Gemini image generation models. Sets aspect ratio (default: 16:9), image size (default: 2K), temperature, and other generation parameters.
+Combined configuration node for image generation models. Selects the config family and dynamically shows the relevant generation settings.
 
-#### Lumi Google Imagen Provider
+For Gemini configs, it sets aspect ratio (default: 16:9), image size (default: 2K), temperature, and top-p.
 
-Direct Google AI Studio API provider for image generation. Uses `GOOGLE_API_KEY` environment variable. Much faster than OpenRouter (~4x).
+#### Lumi LLM Imagen Provider
+
+Combined provider node for image generation APIs. Select `google` or `openrouter` and the node dynamically shows the matching API key environment variable and model list.
+
+Google AI Studio uses `GOOGLE_API_KEY` and is much faster than OpenRouter (~4x). OpenRouter uses `OPENROUTER_API_KEY`.
 
 Available models:
 - `gemini-3-pro-image-preview` (default, supports up to 4K)
 - `gemini-3.1-flash-image-preview` (supports up to 4K)
 - `gemini-2.5-flash-image` (1K only)
-
-#### Lumi OpenRouter Imagen Provider
-
-OpenRouter API provider for Gemini image generation. Uses `OPENROUTER_API_KEY` environment variable.
+- `google/gemini-2.0-flash-preview-image-generation` (OpenRouter only, 1K only)
 
 #### Lumi LLM Imagen Processor
 
-Generates images using configured Gemini imagen providers. Connects to provider and config nodes.
+Generates images using configured Gemini imagen providers. Connect `Lumi LLM Imagen Provider` and `Lumi LLM Imagen Config` to this node.
+
+Deprecated compatibility nodes remain registered for older workflows:
+- `Lumi Gemini Imagen Config`
+- `Lumi Google Imagen Provider`
+- `Lumi OpenRouter Imagen Provider`
+
+ComfyUI can migrate these deprecated nodes to the combined nodes through the registered node replacement mappings.
 
 ### Utility Nodes
 

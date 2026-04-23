@@ -2,7 +2,9 @@
 from .llm_imagen_processor import (
     LumiGeminiImagenConfig,
     LumiGoogleImagenProvider,
+    LumiLLMImagenConfig,
     LumiLLMImagenProcessor,
+    LumiLLMImagenProvider,
     LumiOpenRouterImagenProvider,
 )
 from .llm_prompt_processor import LumiLLMPromptProcessor
@@ -27,6 +29,8 @@ __all__ = [
     "LumiOpenRouterProvider",
     "LumiLLMPromptProcessor",
     "LumiWrapText",
+    "LumiLLMImagenConfig",
+    "LumiLLMImagenProvider",
     "LumiGeminiImagenConfig",
     "LumiOpenRouterImagenProvider",
     "LumiGoogleImagenProvider",

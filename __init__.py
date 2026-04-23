@@ -1,7 +1,9 @@
 from .nodes import (
     LumiGeminiImagenConfig,
     LumiGoogleImagenProvider,
+    LumiLLMImagenConfig,
     LumiLLMImagenProcessor,
+    LumiLLMImagenProvider,
     LumiLLMPromptProcessor,
     LumiLoadImage,
     LumiNoiseToSeed,
@@ -15,6 +17,7 @@ from .nodes import (
     LumiWildcardProcessor,
     LumiWrapText,
 )
+from .nodes.node_replacements import register_node_replacements
 
 try:
     from comfy_api.latest import ComfyExtension, io
@@ -32,6 +35,8 @@ NODE_CLASS_MAPPINGS = {
     "LumiOpenRouterProvider": LumiOpenRouterProvider,
     "LumiLLMPromptProcessor": LumiLLMPromptProcessor,
     "LumiWrapText": LumiWrapText,
+    "LumiLLMImagenConfig": LumiLLMImagenConfig,
+    "LumiLLMImagenProvider": LumiLLMImagenProvider,
     "LumiGeminiImagenConfig": LumiGeminiImagenConfig,
     "LumiOpenRouterImagenProvider": LumiOpenRouterImagenProvider,
     "LumiGoogleImagenProvider": LumiGoogleImagenProvider,
@@ -50,9 +55,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LumiOpenRouterProvider": "Lumi OpenRouter Provider",
     "LumiLLMPromptProcessor": "Lumi LLM Prompt Processor",
     "LumiWrapText": "Lumi Wrap Text",
-    "LumiGeminiImagenConfig": "Lumi Gemini Imagen Config",
-    "LumiOpenRouterImagenProvider": "Lumi OpenRouter Imagen Provider",
-    "LumiGoogleImagenProvider": "Lumi Google Imagen Provider",
+    "LumiLLMImagenConfig": "Lumi LLM Imagen Config",
+    "LumiLLMImagenProvider": "Lumi LLM Imagen Provider",
+    "LumiGeminiImagenConfig": "Lumi Gemini Imagen Config (Deprecated)",
+    "LumiOpenRouterImagenProvider": "Lumi OpenRouter Imagen Provider (Deprecated)",
+    "LumiGoogleImagenProvider": "Lumi Google Imagen Provider (Deprecated)",
     "LumiLLMImagenProcessor": "Lumi LLM Imagen Processor",
     "LumiLoadImage": "Lumi Load Image",
     "LumiSaveImage": "Lumi Save Image",
@@ -63,6 +70,9 @@ WEB_DIRECTORY = "./js"
 if ComfyExtension is not None:
 
     class LumiToolsV3Extension(ComfyExtension):
+        async def on_load(self) -> None:
+            await register_node_replacements()
+
         async def get_node_list(self) -> list[type[io.ComfyNode]]:
             return [
                 LumiNoiseToSeed,
@@ -71,6 +81,8 @@ if ComfyExtension is not None:
                 LumiWrapText,
                 LumiShufflePrompt,
                 LumiOpenRouterProvider,
+                LumiLLMImagenConfig,
+                LumiLLMImagenProvider,
                 LumiGeminiImagenConfig,
                 LumiOpenRouterImagenProvider,
                 LumiGoogleImagenProvider,
