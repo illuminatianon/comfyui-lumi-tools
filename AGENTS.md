@@ -84,12 +84,25 @@ uv run pytest tests/test_file.py::test_name
 
 ## ComfyUI Node Conventions
 
-- Each node class defines `INPUT_TYPES`, `RETURN_TYPES`, `RETURN_NAMES`, `FUNCTION`, and `CATEGORY`.
+- Support both legacy and V3 node APIs during migration.
+- Legacy nodes define `INPUT_TYPES`, `RETURN_TYPES`, `RETURN_NAMES`, `FUNCTION`, and `CATEGORY`.
+- V3 nodes define `define_schema` and `execute` (and may still keep legacy fields for compatibility).
 - Use `CATEGORY` prefix `Lumi/` (e.g., `Lumi/Prompt`).
-- Register nodes in `__init__.py` via `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS`.
+- Register legacy nodes in `__init__.py` via `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS`.
+- Register V3 nodes through `ComfyExtension`/`comfy_entrypoint`.
 - Prefer human-readable `DESCRIPTION` strings on nodes.
 - Use `IS_CHANGED` for dynamic inputs (wildcards, provider configs).
+- For V3 equivalents, use `fingerprint_inputs` and `validate_inputs` where applicable.
 - For widgets updated at runtime, send feedback via `PromptServer` when available.
+
+## Workflow Compatibility and Node Replacement
+
+- Read and follow ComfyUI node replacement docs when changing existing nodes: `https://docs.comfy.org/custom-nodes/backend/node-replacement`.
+- Treat existing node IDs and input slot order as compatibility contracts for saved workflows.
+- For existing nodes, prefer additive changes: append new optional inputs rather than inserting/reordering required inputs.
+- If an input must be renamed, reordered, removed, or split/merged, add an explicit node replacement mapping in the extension load path.
+- Use node replacement when migrating old node IDs to new node IDs; avoid breaking workflow JSON by silent schema reshapes.
+- After any schema/input change, verify by loading an older workflow and checking that widget values and links align to the correct fields.
 
 ## Code Style Guidelines
 
