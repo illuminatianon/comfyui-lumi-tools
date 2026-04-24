@@ -409,90 +409,10 @@ function setupLLMImagenConfigNode(nodeType, nodeData) {
 
         const configTypeWidget = this.widgets.find((w) => w.name === "config_type");
         const updateWidgets = () => {
-            const previousValues = Object.fromEntries(
-                IMAGEN_CONFIG_WIDGETS.map((name) => [name, widgetValue(this, name)])
-            );
-
-            removeWidgets(this, IMAGEN_CONFIG_WIDGETS);
-
-            const configType = configTypeWidget?.value ?? "gemini";
-
-            if (configType === "gemini") {
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "aspect_ratio",
-                    previousValues.aspect_ratio ?? "16:9",
-                    undefined,
-                    { values: IMAGEN_ASPECT_RATIOS }
-                );
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "image_size",
-                    previousValues.image_size ?? "2K",
-                    undefined,
-                    { values: IMAGEN_RESOLUTIONS }
-                );
-                addSerializedWidget(this, "number", "temperature", previousValues.temperature ?? 1.0, undefined, {
-                    min: 0,
-                    max: 2,
-                    step: 0.05,
-                });
-                addSerializedWidget(this, "number", "top_p", previousValues.top_p ?? 1.0, undefined, {
-                    min: 0,
-                    max: 1,
-                    step: 0.01,
-                });
-            } else if (configType === "openai") {
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "size_mode",
-                    previousValues.size_mode ?? "preset",
-                    undefined,
-                    { values: ["preset", "custom"] }
-                );
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "size_preset",
-                    previousValues.size_preset ?? "1024x1024",
-                    undefined,
-                    { values: OPENAI_IMAGE_SIZES }
-                );
-                addSerializedWidget(
-                    this,
-                    "text",
-                    "size_custom",
-                    previousValues.size_custom ?? "1024x1024",
-                    undefined,
-                    {}
-                );
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "quality",
-                    previousValues.quality ?? "auto",
-                    undefined,
-                    { values: OPENAI_QUALITIES }
-                );
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "output_format",
-                    previousValues.output_format ?? "png",
-                    undefined,
-                    { values: OPENAI_OUTPUT_FORMATS }
-                );
-                addSerializedWidget(
-                    this,
-                    "combo",
-                    "background",
-                    previousValues.background ?? "auto",
-                    undefined,
-                    { values: OPENAI_BACKGROUNDS }
-                );
+            for (const widget of this.widgets ?? []) {
+                if (widget.name && ["config_type", ...IMAGEN_CONFIG_WIDGETS].includes(widget.name)) {
+                    widget.serialize = true;
+                }
             }
 
             refreshNodeSize(this);
