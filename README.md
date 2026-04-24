@@ -59,38 +59,41 @@ Processes prompts using LLM inference via OpenRouter. Useful for prompt enhancem
 
 ### Image Generation Nodes
 
-#### Lumi LLM Imagen Config
+#### Lumi Gemini Imagen Config
 
-Combined configuration node for image generation models. Selects the config family and dynamically shows the relevant generation settings.
+Configuration node for Gemini image generation models. Sets aspect ratio (default: 16:9), image size (default: 2K), temperature, and top-p.
 
-For Gemini configs, it sets aspect ratio (default: 16:9), image size (default: 2K), temperature, and top-p.
+#### Lumi Google Imagen Provider
 
-For OpenAI configs, it sets output size, quality, output format, and background. Size can be selected from common presets or entered as a custom `WIDTHxHEIGHT` value. Custom sizes are validated against OpenAI's `gpt-image-2` rules: max edge 3840px, both edges multiples of 16px, max 3:1 aspect ratio, and 655,360 to 8,294,400 total pixels.
-
-#### Lumi LLM Imagen Provider
-
-Combined provider node for image generation APIs. Select `google`, `openrouter`, or `openai` and the node dynamically shows the matching API key environment variable and model list.
-
-Google AI Studio uses `GOOGLE_API_KEY` and is much faster than OpenRouter (~4x). OpenRouter uses `OPENROUTER_API_KEY`. OpenAI uses `OPENAI_API_KEY`.
+Direct Google AI Studio API provider for image generation. Uses `GOOGLE_API_KEY` environment variable. Much faster than OpenRouter (~4x).
 
 Available models:
 - `gemini-3-pro-image-preview` (default, supports up to 4K)
 - `gemini-3.1-flash-image-preview` (supports up to 4K)
 - `gemini-2.5-flash-image` (1K only)
+
+#### Lumi OpenRouter Imagen Provider
+
+OpenRouter API provider for Gemini image generation. Uses `OPENROUTER_API_KEY` environment variable.
+
+Additional OpenRouter model:
 - `google/gemini-2.0-flash-preview-image-generation` (OpenRouter only, 1K only)
+
+#### Lumi OpenAI Imagen Config
+
+Configuration node for OpenAI GPT Image models. Sets preset or custom resolution and quality. Custom resolutions use `WIDTHxHEIGHT` and are validated against OpenAI's `gpt-image-2` rules: max edge 3840px, both edges multiples of 16px, max 3:1 aspect ratio, and 655,360 to 8,294,400 total pixels.
+
+#### Lumi OpenAI Imagen Provider
+
+OpenAI API provider for GPT Image models. Uses `OPENAI_API_KEY` environment variable.
+
+Available models:
 - `gpt-image-2` (OpenAI default, supports custom valid sizes)
 - `gpt-image-1` (OpenAI, supports `1024x1024`, `1536x1024`, and `1024x1536`)
 
 #### Lumi LLM Imagen Processor
 
-Generates images using configured imagen providers. Connect `Lumi LLM Imagen Provider` and `Lumi LLM Imagen Config` to this node. For OpenAI, the processor uses the Image Create endpoint when no `input_images` chain is connected and the Image Edit endpoint when an input image chain is provided.
-
-Deprecated compatibility nodes remain registered for older workflows:
-- `Lumi Gemini Imagen Config`
-- `Lumi Google Imagen Provider`
-- `Lumi OpenRouter Imagen Provider`
-
-ComfyUI can migrate these deprecated nodes to the combined nodes through the registered node replacement mappings.
+Generates images using configured Gemini or OpenAI imagen providers. Connect provider and config nodes. For OpenAI, the processor uses the Image Create endpoint when no `input_images` chain is connected and the Image Edit endpoint when an input image chain is provided.
 
 ### Utility Nodes
 

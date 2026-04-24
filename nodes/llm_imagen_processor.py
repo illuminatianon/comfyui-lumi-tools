@@ -2,12 +2,13 @@
 LLM Imagen Processor nodes for image generation via OpenRouter.
 
 Contains:
-- LumiLLMImagenConfig: Combined configuration for imagen models
-- LumiLLMImagenProvider: Combined provider for imagen APIs
+- LumiGeminiImagenConfig: Configuration for Gemini imagen models
+- LumiOpenRouterImagenProvider: Provider for OpenRouter imagen API
 - LumiLLMImagenProcessor: Main processor that generates images
 """
 
 import base64
+import logging
 import os
 import re
 from io import BytesIO
@@ -28,6 +29,7 @@ except ImportError:
 
 
 _ComfyNodeBase = io.ComfyNode if io is not None else object
+logger = logging.getLogger(__name__)
 
 # Hardcoded list of Gemini imagen models available on OpenRouter
 IMAGEN_MODELS_OPENROUTER = [
@@ -85,13 +87,8 @@ ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"
 # Resolution options
 RESOLUTIONS = ["1K", "2K", "4K"]
 
-IMAGEN_MODELS_OPENAI = [
-    {"id": "gpt-image-2", "name": "GPT Image 2", "family": "openai"},
-    {"id": "gpt-image-1", "name": "GPT Image 1", "family": "openai"},
-]
-
+IMAGEN_MODELS_OPENAI = ["gpt-image-2", "gpt-image-1"]
 OPENAI_IMAGE_SIZES = [
-    "auto",
     "1024x1024",
     "1536x1024",
     "1024x1536",
@@ -102,69 +99,24 @@ OPENAI_IMAGE_SIZES = [
 ]
 OPENAI_LEGACY_IMAGE_SIZES = {"1024x1024", "1536x1024", "1024x1536"}
 OPENAI_QUALITIES = ("auto", "low", "medium", "high")
-OPENAI_OUTPUT_FORMATS = ("png", "jpeg", "webp")
-OPENAI_BACKGROUNDS = ("auto", "opaque")
-
-
-class ContainsAnyDict(dict):
-    """Dictionary that lets dynamic frontend-created inputs pass validation."""
-
-    def __contains__(self, key):
-        return True
-
-
-CONFIG_TYPES = ("gemini", "openai")
-PROVIDER_TYPES = ("google", "openrouter", "openai")
-
-
-def _imagen_config_input_defaults() -> dict[str, Any]:
-    return {
-        "aspect_ratio": "16:9",
-        "image_size": "2K",
-        "temperature": 1.0,
-        "top_p": 1.0,
-    }
-
-
-def _openai_config_input_defaults() -> dict[str, Any]:
-    return {
-        "size_mode": "preset",
-        "size_preset": "1024x1024",
-        "size_custom": "1024x1024",
-        "quality": "auto",
-        "output_format": "png",
-        "background": "auto",
-    }
-
-
-def _openrouter_default_model() -> str:
-    return IMAGEN_MODELS_OPENROUTER[0]["id"] if IMAGEN_MODELS_OPENROUTER else ""
-
-
-def _google_default_model() -> str:
-    return IMAGEN_MODELS_GOOGLE[0]["id"] if IMAGEN_MODELS_GOOGLE else ""
-
-
-def _openai_default_model() -> str:
-    return IMAGEN_MODELS_OPENAI[0]["id"] if IMAGEN_MODELS_OPENAI else ""
 
 
 def _validate_openai_size(size: str, model: str) -> str:
-    if size == "auto":
-        return size
-
-    if model != "gpt-image-2":
-        if size not in OPENAI_LEGACY_IMAGE_SIZES:
-            supported = ", ".join(sorted(OPENAI_LEGACY_IMAGE_SIZES))
-            raise ValueError(f"{model} only supports these sizes: {supported}")
-        return size
-
+    """Validate OpenAI image size and return canonical WIDTHxHEIGHT."""
     match = re.fullmatch(r"(\d+)x(\d+)", size.strip())
     if not match:
-        raise ValueError("OpenAI custom size must use WIDTHxHEIGHT format, for example 2048x1152")
+        raise ValueError("OpenAI image size must use WIDTHxHEIGHT format, for example 2048x1152")
 
     width = int(match.group(1))
     height = int(match.group(2))
+    canonical = f"{width}x{height}"
+
+    if model != "gpt-image-2":
+        if canonical not in OPENAI_LEGACY_IMAGE_SIZES:
+            supported = ", ".join(sorted(OPENAI_LEGACY_IMAGE_SIZES))
+            raise ValueError(f"{model} only supports these sizes: {supported}")
+        return canonical
+
     long_edge = max(width, height)
     short_edge = min(width, height)
     total_pixels = width * height
@@ -178,13 +130,11 @@ def _validate_openai_size(size: str, model: str) -> str:
     if total_pixels < 655_360 or total_pixels > 8_294_400:
         raise ValueError("OpenAI custom size must contain 655,360 to 8,294,400 total pixels")
 
-    return f"{width}x{height}"
+    return canonical
 
 
 class LumiGeminiImagenConfig(_ComfyNodeBase):
     """Configuration node for Gemini imagen models."""
-
-    DEPRECATED = True
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -235,8 +185,8 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
-        "Deprecated: use Lumi LLM Imagen Config instead. "
-        "Creates configuration for Gemini imagen models."
+        "Creates configuration for Gemini imagen models. "
+        "Configure aspect ratio, resolution, and generation parameters."
     )
 
     @staticmethod
@@ -261,7 +211,7 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
 
         return io.Schema(
             node_id="LumiGeminiImagenConfig",
-            display_name="Lumi Gemini Imagen Config (Deprecated)",
+            display_name="Lumi Gemini Imagen Config",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
@@ -321,22 +271,33 @@ class LumiGeminiImagenConfig(_ComfyNodeBase):
         return (self.__class__._build_config(aspect_ratio, image_size, temperature, top_p),)
 
 
-class LumiLLMImagenConfig(_ComfyNodeBase):
-    """Combined configuration node for imagen models."""
+class LumiOpenAIImagenConfig(_ComfyNodeBase):
+    """Configuration node for OpenAI GPT Image models."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "config_type": (
-                    CONFIG_TYPES,
+                "resolution_mode": (
+                    ("preset", "custom"),
+                    {"default": "preset", "tooltip": "Use a preset size or custom WIDTHxHEIGHT"},
+                ),
+                "resolution": (
+                    tuple(OPENAI_IMAGE_SIZES),
+                    {"default": "1024x1024", "tooltip": "Preset OpenAI output resolution"},
+                ),
+                "custom_resolution": (
+                    "STRING",
                     {
-                        "default": "gemini",
-                        "tooltip": "Imagen config family to create",
+                        "default": "2048x1152",
+                        "tooltip": "Custom WIDTHxHEIGHT. gpt-image-2: max edge 3840, multiples of 16, max 3:1, 655,360-8,294,400 pixels.",
                     },
                 ),
-            },
-            "optional": ContainsAnyDict(),
+                "quality": (
+                    OPENAI_QUALITIES,
+                    {"default": "auto", "tooltip": "OpenAI image quality"},
+                ),
+            }
         }
 
     RETURN_TYPES = ("IMAGEN_CONFIG",)
@@ -345,9 +306,26 @@ class LumiLLMImagenConfig(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
-        "Creates an imagen generation configuration. "
-        "Dynamic inputs expose the options supported by the selected model family."
+        "Creates configuration for OpenAI GPT Image models. "
+        "Resolution can be selected from common presets or entered as a custom WIDTHxHEIGHT."
     )
+
+    @staticmethod
+    def _build_config(
+        resolution_mode: str,
+        resolution: str,
+        custom_resolution: str,
+        quality: str,
+    ) -> Dict[str, Any]:
+        size = custom_resolution.strip() if resolution_mode == "custom" else resolution
+        return {
+            "config_type": "openai",
+            "resolution_mode": resolution_mode,
+            "resolution": resolution,
+            "custom_resolution": custom_resolution.strip(),
+            "size": size,
+            "quality": quality,
+        }
 
     @classmethod
     def define_schema(cls):
@@ -355,251 +333,66 @@ class LumiLLMImagenConfig(_ComfyNodeBase):
             raise RuntimeError("ComfyUI V3 API is not available")
 
         return io.Schema(
-            node_id="LumiLLMImagenConfig",
-            display_name="Lumi LLM Imagen Config",
+            node_id="LumiOpenAIImagenConfig",
+            display_name="Lumi OpenAI Imagen Config",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
                 io.Combo.Input(
-                    "config_type",
-                    options=CONFIG_TYPES,
-                    default="gemini",
-                    tooltip="Imagen config family to create",
-                ),
-                io.Combo.Input(
-                    "aspect_ratio",
-                    options=tuple(ASPECT_RATIOS),
-                    default="16:9",
-                    tooltip="Gemini aspect ratio for generated images",
-                    optional=True,
-                ),
-                io.Combo.Input(
-                    "image_size",
-                    options=tuple(RESOLUTIONS),
-                    default="2K",
-                    tooltip="Gemini image size tier",
-                    optional=True,
-                ),
-                io.Float.Input(
-                    "temperature",
-                    default=1.0,
-                    min=0.0,
-                    max=2.0,
-                    step=0.05,
-                    tooltip="Gemini generation temperature",
-                    optional=True,
-                ),
-                io.Float.Input(
-                    "top_p",
-                    default=1.0,
-                    min=0.0,
-                    max=1.0,
-                    step=0.01,
-                    tooltip="Gemini top-p sampling parameter",
-                    optional=True,
-                ),
-                io.Combo.Input(
-                    "size_mode",
+                    "resolution_mode",
                     options=("preset", "custom"),
                     default="preset",
-                    tooltip="OpenAI size source",
-                    optional=True,
+                    tooltip="Use a preset size or custom WIDTHxHEIGHT",
                 ),
                 io.Combo.Input(
-                    "size_preset",
+                    "resolution",
                     options=tuple(OPENAI_IMAGE_SIZES),
                     default="1024x1024",
-                    tooltip="OpenAI preset output size",
-                    optional=True,
+                    tooltip="Preset OpenAI output resolution",
                 ),
                 io.String.Input(
-                    "size_custom",
-                    default="1024x1024",
-                    tooltip="OpenAI custom output size as WIDTHxHEIGHT",
-                    optional=True,
+                    "custom_resolution",
+                    default="2048x1152",
+                    tooltip="Custom WIDTHxHEIGHT. gpt-image-2: max edge 3840, multiples of 16, max 3:1, 655,360-8,294,400 pixels.",
                 ),
                 io.Combo.Input(
                     "quality",
                     options=OPENAI_QUALITIES,
                     default="auto",
-                    tooltip="OpenAI rendering quality",
-                    optional=True,
-                ),
-                io.Combo.Input(
-                    "output_format",
-                    options=OPENAI_OUTPUT_FORMATS,
-                    default="png",
-                    tooltip="OpenAI output format",
-                    optional=True,
-                ),
-                io.Combo.Input(
-                    "background",
-                    options=OPENAI_BACKGROUNDS,
-                    default="auto",
-                    tooltip="OpenAI background mode",
-                    optional=True,
+                    tooltip="OpenAI image quality",
                 ),
             ],
             outputs=[IMAGEN_CONFIG_TYPE.Output(display_name="config")],
         )
 
     @classmethod
-    def execute(cls, config_type: str = "gemini", **kwargs):
-        """Create an imagen configuration from dynamic inputs."""
-        config = cls._build_config(config_type, **kwargs)
+    def execute(
+        cls,
+        resolution_mode: str,
+        resolution: str,
+        custom_resolution: str,
+        quality: str,
+    ):
+        """Create OpenAI imagen configuration."""
+        config = cls._build_config(resolution_mode, resolution, custom_resolution, quality)
         if io is not None:
             return io.NodeOutput(config)
         return (config,)
 
-    @staticmethod
-    def _build_config(config_type: str = "gemini", **kwargs) -> Dict[str, Any]:
-        if config_type == "gemini":
-            defaults = _imagen_config_input_defaults()
-            return LumiGeminiImagenConfig._build_config(
-                str(kwargs.get("aspect_ratio", defaults["aspect_ratio"])),
-                str(kwargs.get("image_size", defaults["image_size"])),
-                float(kwargs.get("temperature", defaults["temperature"])),
-                float(kwargs.get("top_p", defaults["top_p"])),
-            )
-
-        if config_type == "openai":
-            defaults = _openai_config_input_defaults()
-            size_mode = str(kwargs.get("size_mode", defaults["size_mode"]))
-            size_preset = str(kwargs.get("size_preset", defaults["size_preset"]))
-            size_custom = str(kwargs.get("size_custom", defaults["size_custom"])).strip()
-            size = size_custom if size_mode == "custom" else size_preset
-            return {
-                "config_type": "openai",
-                "size": size,
-                "size_mode": size_mode,
-                "size_preset": size_preset,
-                "size_custom": size_custom,
-                "quality": str(kwargs.get("quality", defaults["quality"])),
-                "output_format": str(kwargs.get("output_format", defaults["output_format"])),
-                "background": str(kwargs.get("background", defaults["background"])),
-            }
-
-        raise ValueError(f"Unknown imagen config type: {config_type}")
-
-    def create_config(self, config_type: str = "gemini", **kwargs) -> Tuple[Dict[str, Any]]:
-        return (self.__class__._build_config(config_type, **kwargs),)
-
-
-class LumiOpenAIImagenProvider(_ComfyNodeBase):
-    """OpenAI provider for GPT Image models."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        model_choices = [m["id"] for m in IMAGEN_MODELS_OPENAI]
-        model_choices_tuple = tuple(model_choices)
-
-        return {
-            "required": {
-                "env_key": (
-                    "STRING",
-                    {
-                        "default": "OPENAI_API_KEY",
-                        "tooltip": "Environment variable name containing the OpenAI API key",
-                    },
-                ),
-                "model": (
-                    model_choices_tuple,
-                    {
-                        "default": model_choices[0] if model_choices else "",
-                        "tooltip": "Select the GPT Image model to use",
-                    },
-                ),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGEN_PROVIDER",)
-    RETURN_NAMES = ("provider",)
-    FUNCTION = "execute"
-    CATEGORY = "Lumi/LLM"
-
-    DESCRIPTION = (
-        "Creates an OpenAI provider for GPT Image models. "
-        "The API key must be set as an environment variable."
-    )
-
-    @staticmethod
-    def _build_provider_config(env_key: str, model: str) -> Dict[str, Any]:
-        api_key = os.getenv(env_key.strip())
-        if not api_key:
-            raise ValueError(
-                f"API key not found in environment variable '{env_key}'. "
-                "Please set the environment variable with your OpenAI API key."
-            )
-
-        model_info = next((m for m in IMAGEN_MODELS_OPENAI if m["id"] == model), None)
-        if not model_info:
-            model_info = {"id": model, "family": "openai"}
-
-        return {
-            "provider_type": "openai_imagen",
-            "api_key": api_key,
-            "model_id": model,
-            "model_family": model_info.get("family", "openai"),
-            "env_key": env_key,
-        }
-
-    @classmethod
-    def define_schema(cls):
-        if io is None or IMAGEN_PROVIDER_TYPE is None:
-            raise RuntimeError("ComfyUI V3 API is not available")
-
-        model_choices = [m["id"] for m in IMAGEN_MODELS_OPENAI]
-
-        return io.Schema(
-            node_id="LumiOpenAIImagenProvider",
-            display_name="Lumi OpenAI Imagen Provider",
-            category="Lumi/LLM",
-            description=cls.DESCRIPTION,
-            inputs=[
-                io.String.Input(
-                    "env_key",
-                    default="OPENAI_API_KEY",
-                    tooltip="Environment variable name containing the OpenAI API key",
-                ),
-                io.Combo.Input(
-                    "model",
-                    options=tuple(model_choices),
-                    default=model_choices[0] if model_choices else "",
-                    tooltip="Select the GPT Image model to use",
-                ),
-            ],
-            outputs=[IMAGEN_PROVIDER_TYPE.Output(display_name="provider")],
+    def create_config(
+        self,
+        resolution_mode: str,
+        resolution: str,
+        custom_resolution: str,
+        quality: str,
+    ) -> Tuple[Dict[str, Any]]:
+        return (
+            self.__class__._build_config(resolution_mode, resolution, custom_resolution, quality),
         )
-
-    @classmethod
-    def execute(cls, env_key: str, model: str):
-        """Create OpenAI imagen provider configuration."""
-        provider_config = cls._build_provider_config(env_key, model)
-        if io is not None:
-            return io.NodeOutput(provider_config)
-        return (provider_config,)
-
-    def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
-        return (self.__class__._build_provider_config(env_key, model),)
-
-    @classmethod
-    def IS_CHANGED(cls, **kwargs):
-        """Always execute to prevent caching of API keys."""
-        return float("nan")
-
-    @classmethod
-    def fingerprint_inputs(cls, **kwargs):
-        return float("nan")
-
-    def __getstate__(self):
-        """Exclude sensitive data from workflow files."""
-        return {"class_type": self.__class__.__name__, "version": "1.0"}
 
 
 class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     """OpenRouter provider for imagen models."""
-
-    DEPRECATED = True
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -631,7 +424,6 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
-        "Deprecated: use Lumi LLM Imagen Provider instead. "
         "Creates an OpenRouter provider for imagen models. "
         "The API key must be set as an environment variable."
     )
@@ -667,7 +459,7 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
 
         return io.Schema(
             node_id="LumiOpenRouterImagenProvider",
-            display_name="Lumi OpenRouter Imagen Provider (Deprecated)",
+            display_name="Lumi OpenRouter Imagen Provider",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
@@ -714,8 +506,6 @@ class LumiOpenRouterImagenProvider(_ComfyNodeBase):
 class LumiGoogleImagenProvider(_ComfyNodeBase):
     """Direct Google AI Studio provider for imagen models (faster than OpenRouter)."""
 
-    DEPRECATED = True
-
     @classmethod
     def INPUT_TYPES(cls):
         model_choices = [m["id"] for m in IMAGEN_MODELS_GOOGLE]
@@ -746,7 +536,6 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
-        "Deprecated: use Lumi LLM Imagen Provider instead. "
         "Creates a direct Google AI Studio provider for imagen models. "
         "Faster than OpenRouter. API key must be set as an environment variable."
     )
@@ -782,7 +571,7 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
 
         return io.Schema(
             node_id="LumiGoogleImagenProvider",
-            display_name="Lumi Google Imagen Provider (Deprecated)",
+            display_name="Lumi Google Imagen Provider",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
@@ -826,22 +615,25 @@ class LumiGoogleImagenProvider(_ComfyNodeBase):
         return {"class_type": self.__class__.__name__, "version": "1.0"}
 
 
-class LumiLLMImagenProvider(_ComfyNodeBase):
-    """Combined provider node for imagen APIs."""
+class LumiOpenAIImagenProvider(_ComfyNodeBase):
+    """OpenAI provider for GPT Image models."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "provider_type": (
-                    PROVIDER_TYPES,
+                "env_key": (
+                    "STRING",
                     {
-                        "default": "google",
-                        "tooltip": "Imagen API provider to use",
+                        "default": "OPENAI_API_KEY",
+                        "tooltip": "Environment variable name containing the OpenAI API key",
                     },
                 ),
-            },
-            "optional": ContainsAnyDict(),
+                "model": (
+                    tuple(IMAGEN_MODELS_OPENAI),
+                    {"default": "gpt-image-2", "tooltip": "Select the GPT Image model to use"},
+                ),
+            }
         }
 
     RETURN_TYPES = ("IMAGEN_PROVIDER",)
@@ -850,9 +642,26 @@ class LumiLLMImagenProvider(_ComfyNodeBase):
     CATEGORY = "Lumi/LLM"
 
     DESCRIPTION = (
-        "Creates an imagen provider configuration. "
-        "Dynamic inputs expose the API key environment variable and model list for the selected provider."
+        "Creates an OpenAI provider for GPT Image models. "
+        "The API key must be set as an environment variable."
     )
+
+    @staticmethod
+    def _build_provider_config(env_key: str, model: str) -> Dict[str, Any]:
+        api_key = os.getenv(env_key.strip())
+        if not api_key:
+            raise ValueError(
+                f"API key not found in environment variable '{env_key}'. "
+                "Please set the environment variable with your OpenAI API key."
+            )
+
+        return {
+            "provider_type": "openai_imagen",
+            "api_key": api_key,
+            "model_id": model,
+            "model_family": "openai",
+            "env_key": env_key,
+        }
 
     @classmethod
     def define_schema(cls):
@@ -860,81 +669,36 @@ class LumiLLMImagenProvider(_ComfyNodeBase):
             raise RuntimeError("ComfyUI V3 API is not available")
 
         return io.Schema(
-            node_id="LumiLLMImagenProvider",
-            display_name="Lumi LLM Imagen Provider",
+            node_id="LumiOpenAIImagenProvider",
+            display_name="Lumi OpenAI Imagen Provider",
             category="Lumi/LLM",
             description=cls.DESCRIPTION,
             inputs=[
-                io.Combo.Input(
-                    "provider_type",
-                    options=PROVIDER_TYPES,
-                    default="google",
-                    tooltip="Imagen API provider to use",
-                ),
                 io.String.Input(
                     "env_key",
-                    default="GOOGLE_API_KEY",
-                    tooltip="Environment variable name containing the selected provider API key",
-                    optional=True,
+                    default="OPENAI_API_KEY",
+                    tooltip="Environment variable name containing the OpenAI API key",
                 ),
-                io.String.Input(
+                io.Combo.Input(
                     "model",
-                    default=_google_default_model(),
-                    tooltip="Selected provider model ID",
-                    optional=True,
+                    options=tuple(IMAGEN_MODELS_OPENAI),
+                    default="gpt-image-2",
+                    tooltip="Select the GPT Image model to use",
                 ),
             ],
             outputs=[IMAGEN_PROVIDER_TYPE.Output(display_name="provider")],
         )
 
     @classmethod
-    def execute(cls, provider_type: str = "google", **kwargs):
-        """Create an imagen provider configuration from dynamic inputs."""
-        if provider_type == "google":
-            provider_config = LumiGoogleImagenProvider._build_provider_config(
-                str(kwargs.get("env_key", "GOOGLE_API_KEY")),
-                str(kwargs.get("model", _google_default_model())),
-            )
-        elif provider_type == "openrouter":
-            provider_config = LumiOpenRouterImagenProvider._build_provider_config(
-                str(kwargs.get("env_key", "OPENROUTER_API_KEY")),
-                str(kwargs.get("model", _openrouter_default_model())),
-            )
-        elif provider_type == "openai":
-            provider_config = LumiOpenAIImagenProvider._build_provider_config(
-                str(kwargs.get("env_key", "OPENAI_API_KEY")),
-                str(kwargs.get("model", _openai_default_model())),
-            )
-        else:
-            raise ValueError(f"Unknown imagen provider type: {provider_type}")
-
+    def execute(cls, env_key: str, model: str):
+        """Create OpenAI imagen provider configuration."""
+        provider_config = cls._build_provider_config(env_key, model)
         if io is not None:
             return io.NodeOutput(provider_config)
         return (provider_config,)
 
-    def create_provider(self, provider_type: str = "google", **kwargs) -> Tuple[Dict[str, Any]]:
-        if provider_type == "google":
-            return (
-                LumiGoogleImagenProvider._build_provider_config(
-                    str(kwargs.get("env_key", "GOOGLE_API_KEY")),
-                    str(kwargs.get("model", _google_default_model())),
-                ),
-            )
-        if provider_type == "openrouter":
-            return (
-                LumiOpenRouterImagenProvider._build_provider_config(
-                    str(kwargs.get("env_key", "OPENROUTER_API_KEY")),
-                    str(kwargs.get("model", _openrouter_default_model())),
-                ),
-            )
-        if provider_type == "openai":
-            return (
-                LumiOpenAIImagenProvider._build_provider_config(
-                    str(kwargs.get("env_key", "OPENAI_API_KEY")),
-                    str(kwargs.get("model", _openai_default_model())),
-                ),
-            )
-        raise ValueError(f"Unknown imagen provider type: {provider_type}")
+    def create_provider(self, env_key: str, model: str) -> Tuple[Dict[str, Any]]:
+        return (self.__class__._build_provider_config(env_key, model),)
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -1041,18 +805,34 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
 
         provider_type = provider.get("provider_type", "")
         image_data_urls = processor._extract_input_image_data_urls(input_images)
-        provider_handlers = {
-            "google_imagen": processor._generate_google,
-            "openrouter_imagen": processor._generate_openrouter,
-            "openai_imagen": processor._generate_openai,
-        }
 
-        if provider_type in provider_handlers:
-            return provider_handlers[provider_type](
+        if provider_type == "google_imagen":
+            return processor._generate_google(
                 provider,
                 config,
                 prompt,
                 seed,
+                normalized_error_mode,
+                instructions,
+                image_data_urls,
+            )
+
+        if provider_type == "openrouter_imagen":
+            return processor._generate_openrouter(
+                provider,
+                config,
+                prompt,
+                seed,
+                normalized_error_mode,
+                instructions,
+                image_data_urls,
+            )
+
+        if provider_type == "openai_imagen":
+            return processor._generate_openai(
+                provider,
+                config,
+                prompt,
                 normalized_error_mode,
                 instructions,
                 image_data_urls,
@@ -1382,7 +1162,6 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
         provider: Dict[str, Any],
         config: Dict[str, Any],
         prompt: str,
-        seed: int,
         error_mode: str,
         instructions: str,
         input_image_data_urls: list[str],
@@ -1390,7 +1169,7 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
         """Generate or edit images via the OpenAI Image API."""
         model = provider["model_id"]
         try:
-            size = _validate_openai_size(str(config.get("size", "auto")).strip(), model)
+            size = _validate_openai_size(str(config.get("size", "1024x1024")), model)
         except ValueError as e:
             if error_mode == "return_text":
                 return (self._empty_image_tensor(), str(e))
@@ -1403,13 +1182,11 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
         request_fields = {
             "model": model,
             "prompt": full_prompt,
-            "quality": str(config.get("quality", "auto")),
             "size": size,
-            "output_format": str(config.get("output_format", "png")),
-            "background": str(config.get("background", "auto")),
+            "quality": config.get("quality", "auto"),
         }
-
         headers = {"Authorization": f"Bearer {provider['api_key']}"}
+        safe_log_fields = {**request_fields, "prompt": f"<redacted {len(full_prompt)} chars>"}
 
         try:
             if input_image_data_urls:
@@ -1420,6 +1197,12 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
                     )
                     for index, data_url in enumerate(input_image_data_urls)
                 ]
+                logger.warning(
+                    "OpenAI image edit request: endpoint=%s fields=%s image_count=%s",
+                    "/v1/images/edits",
+                    safe_log_fields,
+                    len(image_files),
+                )
                 response = requests.post(
                     "https://api.openai.com/v1/images/edits",
                     headers=headers,
@@ -1428,6 +1211,11 @@ class LumiLLMImagenProcessor(_ComfyNodeBase):
                     timeout=180,
                 )
             else:
+                logger.warning(
+                    "OpenAI image generation request: endpoint=%s json=%s",
+                    "/v1/images/generations",
+                    safe_log_fields,
+                )
                 response = requests.post(
                     "https://api.openai.com/v1/images/generations",
                     headers={**headers, "Content-Type": "application/json"},
