@@ -7,6 +7,7 @@ from .nodes import (
     LumiNoiseToSeed,
     LumiOpenRouterImagenProvider,
     LumiOpenRouterProvider,
+    LumiRGBAtoRGB,
     LumiSaveImage,
     LumiSeed,
     LumiShowText,
@@ -37,6 +38,7 @@ NODE_CLASS_MAPPINGS = {
     "LumiGoogleImagenProvider": LumiGoogleImagenProvider,
     "LumiLLMImagenProcessor": LumiLLMImagenProcessor,
     "LumiLoadImage": LumiLoadImage,
+    "LumiRGBAtoRGB": LumiRGBAtoRGB,
     "LumiSaveImage": LumiSaveImage,
 }
 
@@ -55,6 +57,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LumiGoogleImagenProvider": "Lumi Google Imagen Provider",
     "LumiLLMImagenProcessor": "Lumi LLM Imagen Processor",
     "LumiLoadImage": "Lumi Load Image",
+    "LumiRGBAtoRGB": "Lumi RGBA to RGB",
     "LumiSaveImage": "Lumi Save Image",
 }
 
@@ -77,6 +80,7 @@ if ComfyExtension is not None:
                 LumiLLMPromptProcessor,
                 LumiLLMImagenProcessor,
                 LumiSaveImage,
+                LumiRGBAtoRGB,
                 LumiShowText,
                 LumiWildcardProcessor,
             ]

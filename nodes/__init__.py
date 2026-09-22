@@ -9,6 +9,7 @@ from .llm_prompt_processor import LumiLLMPromptProcessor
 from .load_image import LumiLoadImage
 from .noise_to_seed import LumiNoiseToSeed
 from .openrouter_provider import LumiOpenRouterProvider
+from .rgba_to_rgb import LumiRGBAtoRGB
 from .save_image import LumiSaveImage
 from .seed import LumiSeed
 from .show_text import LumiShowText
@@ -32,5 +33,6 @@ __all__ = [
     "LumiGoogleImagenProvider",
     "LumiLLMImagenProcessor",
     "LumiLoadImage",
+    "LumiRGBAtoRGB",
     "LumiSaveImage",
 ]
