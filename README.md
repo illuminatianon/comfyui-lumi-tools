@@ -108,6 +108,11 @@ Alternatively:
 - Set the `LUMI_WILDCARDS_PATH` environment variable
 - Place wildcards in `{ComfyUI}/wildcards`
 
+Wildcards are cached between requests. Set `LUMI_WILDCARDS_CACHE_INTERVAL` to the
+number of seconds between filesystem checks (default: `30`; `0` checks on every
+request). File additions, deletions, renames, and edits are picked up on the next
+check. The setting is read when the node pack loads; restart ComfyUI to change it.
+
 ## License
 
 GPL-3.0

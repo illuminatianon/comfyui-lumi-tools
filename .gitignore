@@ -14,3 +14,4 @@ wheels/
 # Project files
 wildcards/**
 tmp/**
+repomix-output.xml

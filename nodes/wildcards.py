@@ -4,15 +4,19 @@ Shared wildcard utilities for Lumi Pack nodes.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from pathlib import Path
 
 from dynamicprompts.enums import SamplingMethod
 from dynamicprompts.sampling_context import SamplingContext
 from dynamicprompts.wildcards import WildcardManager
 
-# Cache for WildcardManager with mtime-based invalidation
-_wildcard_cache: dict = {"manager": None, "mtimes": {}}
+logger = logging.getLogger(__name__)
+_CACHE_VALIDATION_INTERVAL = float(os.environ.get("LUMI_WILDCARDS_CACHE_INTERVAL", "30"))
+_WILDCARD_EXTENSIONS = (".txt", ".yaml", ".json")
+_wildcard_cache: dict = {"manager": None, "paths": (), "snapshot": None, "validated_at": 0.0}
 
 
 def _init_wildcard_folder_paths() -> None:
@@ -62,7 +66,8 @@ def get_wildcard_paths() -> list[Path]:
     env_path = os.environ.get("LUMI_WILDCARDS_PATH")
     if env_path:
         path = Path(env_path)
-        path.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.mkdir(parents=True, exist_ok=True)
         paths.append(path)
 
     # Try to use ComfyUI's folder_paths
@@ -71,8 +76,10 @@ def get_wildcard_paths() -> list[Path]:
 
         for p in folder_paths.get_folder_paths("wildcards"):
             path = Path(p)
-            if path.exists() or path == Path(folder_paths.base_path) / "wildcards":
-                path.mkdir(parents=True, exist_ok=True)
+            exists = path.exists()
+            if exists or path == Path(folder_paths.base_path) / "wildcards":
+                if not exists:
+                    path.mkdir(parents=True, exist_ok=True)
                 if path not in paths:
                     paths.append(path)
     except (ImportError, KeyError):
@@ -86,7 +93,8 @@ def get_wildcard_paths() -> list[Path]:
     # Fallback if no paths found
     if not paths:
         fallback = Path("./wildcards")
-        fallback.mkdir(parents=True, exist_ok=True)
+        if not fallback.exists():
+            fallback.mkdir(parents=True, exist_ok=True)
         paths.append(fallback)
 
     return paths
@@ -96,21 +104,22 @@ def get_wildcard_paths() -> list[Path]:
 _init_wildcard_folder_paths()
 
 
-def _get_folder_mtimes(paths: list[Path]) -> dict[Path, float]:
-    """
-    Get modification times for wildcard folders and their contents.
-    Used to detect when wildcards have changed.
-    """
-    mtimes: dict[Path, float] = {}
+def _scan_wildcards(paths: list[Path]) -> tuple[set[str], dict[str, tuple[int, int, int]]]:
+    """Track directories and wildcard file metadata in one walk per root."""
+    started = time.monotonic()
+    directories: set[str] = set()
+    files: dict[str, tuple[int, int, int]] = {}
     for path in paths:
-        if path.exists():
-            # Track folder mtime
-            mtimes[path] = path.stat().st_mtime
-            # Also track individual wildcard files
-            for ext in (".txt", ".yaml", ".json"):
-                for file in path.rglob(f"*{ext}"):
-                    mtimes[file] = file.stat().st_mtime
-    return mtimes
+        for directory, _, names in os.walk(path):
+            directories.add(directory)
+            for name in names:
+                if not name.endswith(_WILDCARD_EXTENSIONS):
+                    continue
+                file = os.path.join(directory, name)
+                stat = os.stat(file)
+                files[file] = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+    logger.debug("Wildcard filesystem scan took %.3f s", time.monotonic() - started)
+    return directories, files
 
 
 def get_wildcard_manager() -> WildcardManager:
@@ -123,24 +132,33 @@ def get_wildcard_manager() -> WildcardManager:
 
     Supports multiple wildcard directories via ComfyUI's folder_paths system.
     """
+    manager = _wildcard_cache["manager"]
+    now = time.monotonic()
+    if manager is not None and now - _wildcard_cache["validated_at"] < _CACHE_VALIDATION_INTERVAL:
+        return manager
+
     paths = get_wildcard_paths()
-    current_mtimes = _get_folder_mtimes(paths)
+    snapshot = _scan_wildcards(paths)
+    if (
+        manager is not None
+        and _wildcard_cache["paths"] == tuple(paths)
+        and _wildcard_cache["snapshot"] == snapshot
+    ):
+        _wildcard_cache["validated_at"] = time.monotonic()
+        return manager
 
-    # Check if cache is valid
-    if _wildcard_cache["manager"] is not None and _wildcard_cache["mtimes"] == current_mtimes:
-        return _wildcard_cache["manager"]
-
-    # Cache miss or invalidated - create new manager
+    started = time.monotonic()
     if len(paths) == 1:
         manager = WildcardManager(path=paths[0])
     else:
-        # Multiple paths: use root_map to combine them
-        # All paths are mapped to the root "" prefix so wildcards are accessible without prefix
-        root_map = {"": paths}
-        manager = WildcardManager(root_map=root_map)
+        # Map every root to the same prefix for unprefixed wildcard names.
+        manager = WildcardManager(root_map={"": paths})
 
+    logger.debug("Wildcard manager initialization/reload took %.3f s", time.monotonic() - started)
     _wildcard_cache["manager"] = manager
-    _wildcard_cache["mtimes"] = current_mtimes
+    _wildcard_cache["paths"] = tuple(paths)
+    _wildcard_cache["snapshot"] = snapshot
+    _wildcard_cache["validated_at"] = time.monotonic()
     return manager
 
 
